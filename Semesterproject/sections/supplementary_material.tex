@@ -1,0 +1,117 @@
+\appendix
+\section{Appendix}
+
+\subsection{SoftDevice Preemption Timing Derivation}
+\label{app:softdevice_timing}
+
+The Nordic S132 SoftDevice preempts the application at every BLE connection 
+event to handle radio and stack operations. The timing parameters for a 
+peripheral connection event are given in Table~36 of the S132 SoftDevice 
+Specification v7.1~\cite{nordic_s132_sds_v71}, reproduced in 
+Table~\ref{tab:softdevice_timing} below. The system does not employ encryption, 
+PA/LNA, or the Radio Timeslot API, so typical values apply.
+
+\begin{table}[h]
+\centering
+\caption{SoftDevice processor usage during a peripheral connection event 
+(reproduced from Nordic S132 SDS v7.1, Table~36~\cite{nordic_s132_sds_v71}).}
+\label{tab:softdevice_timing}
+\begin{tabular}{llccc}
+\toprule
+\textbf{Parameter} & \textbf{Description} & \textbf{Min} & 
+\textbf{Typical} & \textbf{Max} \\
+\midrule
+$t_{\text{ISR}(0),\text{RadioPrepare}}$    & Preparing radio for connection event        & ---          & 51~\textmu s      & 65~\textmu s  \\
+$t_{\text{ISR}(0),\text{RadioStart}}$      & Starting the connection event               & ---          & 18~\textmu s      & 24~\textmu s  \\
+$t_{\text{ISR}(0),\text{RadioProcessing}}$ & Processing after sending/receiving a packet & ---          & 60~\textmu s      & 67~\textmu s  \\
+$t_{\text{ISR}(0),\text{PostProcessing}}$  & Processing at end of connection event       & ---          & 90~\textmu s      & 250~\textmu s \\
+$t_{n\text{ISR}(0)}$                       & Distance between interrupts                 & 183~\textmu s& $>$190~\textmu s  & ---           \\
+$t_{\text{ISR}(4)}$                        & Priority level 4 interrupt per packet       & ---          & 40~\textmu s      & ---           \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Single-packet baseline}
+
+The datasheet gives the following formula for one packet sent and received 
+per connection event:
+
+For compactness, let $t_\text{RP}$, $t_\text{RS}$, $t_\text{RProc}$, 
+$t_\text{PP}$, and $t_4$ denote the timing parameters from 
+Table~\ref{tab:softdevice_timing}. The total preemption time for one 
+packet is then:
+
+\begin{equation}
+t_{\text{1 pkt}} = t_\text{RP} + t_\text{RS} + t_\text{RProc} + 
+t_\text{PP} + 2 \cdot t_4 = 299~\mu\text{s (typical)}
+\label{eq:single_packet}
+\end{equation}
+
+The factor of $2 \cdot t_{\text{ISR}(4)}$ reflects two priority-level-4 interrupts 
+fired at the end of the event for stack cleanup and application event delivery, 
+both associated with packet reception processing.
+
+\subsection*{Extension to multiple packets per connection event}
+
+At a sampling rate of 32\,000 SPI transactions per second across 16 channels, 
+and with 112 samples per BLE packet, the required packet rate is:
+
+\begin{equation}
+\frac{32{,}000}{112} \approx 285.7 \text{ packets/s}
+\end{equation}
+
+At the minimum connection interval of 7.5~ms, this corresponds to:
+
+\begin{equation}
+285.7 \times 0.0075 \approx 2.1 \text{ packets per connection event}
+\end{equation}
+
+At the maximum connection interval of 10~ms:
+
+\begin{equation}
+285.7 \times 0.010 \approx 2.9 \text{ packets per connection event}
+\end{equation}
+
+The system therefore transmits 2--3 packets per connection event. Each 
+additional packet beyond the first adds one further 
+$t_{\text{ISR}(0),\text{RadioProcessing}}$ interrupt (to handle the 
+acknowledgement) and one $t_{\text{ISR}(4)}$ interrupt (to deliver the 
+\texttt{HVN\_TX\_COMPLETE} event to the application, which triggers 
+transmission of the next packet):
+
+\begin{equation}
+\Delta t_{\text{per extra packet}} = 
+t_{\text{ISR}(0),\text{RadioProcessing}} + t_{\text{ISR}(4)} = 
+60 + 40 = 100~\text{\textmu s (typical)}
+\end{equation}
+
+The total preemption time for 2 and 3 packets per event is therefore:
+
+\begin{align}
+t_{\text{2 packets}} &= 299 + 100 = 399~\text{\textmu s} \\
+t_{\text{3 packets}} &= 299 + 200 = 499~\text{\textmu s}
+\end{align}
+
+This gives a total preemption window of approximately 400--500~\textmu s per 
+connection event, occurring every 7.5--10~ms.
+
+
+\subsection{Practical Tips}
+\TODO{}
+
+\subsubsection{Code Development}
+\TODO{}
+
+\subsubsection{Solved Errors}
+\TODO{}
+
+\subsubsection{Potential issues}
+channel switches were sometimes observed (due to Convert(63) architecture). in the current code it did not occur during intensive testing. if it still persists (depending on the cause) should not lead to dataloss (or at least if we get dataloss this is not recoverable independent on the architecture (e.g., CS line corruption or CPU too busy). Still the switches are very annoying. By shorting one electrode recording channel to GND channel switches can be observed and (apart from the actually lost data), the signal can be recovered in postprocessing).
+\TODO{}
+
+\subsubsection{Flashing Code on Non-Development Kit nRF52832}
+\TODO{}
+
+\subsubsection{GUI}
+\TODO{}
+Copy detailled GUI explanation from Github

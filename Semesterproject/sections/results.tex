@@ -1,0 +1,128 @@
+\section{Results}
+
+The system was successfully implemented and validated across all major functional blocks:
+hardware-driven neural signal acquisition across a configurable selection of 1--16 channels,
+charge-balanced biphasic electrical stimulation, and bidirectional BLE command and data
+transfer. Key quantitative results are summarised here; detailed measurements and figures
+are presented in the subsections that follow.
+
+BLE throughput with real SPI data from the Intan RHS2116 reached \TODO{X}\,kbps in the
+default 16-channel configuration at 2\,kHz per channel, confirming that the hardware-driven
+pipeline sustains the required data rate under continuous operation
+(Section~\ref{sec:results_ble}). The stimulation pipeline was validated by oscilloscope
+measurement of the biphasic waveform at the Intan RHS2116 output, confirming correct pulse
+shape, timing, and charge balance across a range of configured parameters
+(Section~\ref{sec:results_stim}). Multi-channel neural signal recording was confirmed by
+live acquisition from the RHS2116, with all configured channels rendered in real time in
+the GUI (Section~\ref{sec:results_recording}).
+
+Power consumption of the peripheral was measured at 18.6\,mW under continuous 16-channel
+recording at 2\,kHz per channel (measured supply voltage 3.020\,V), compared to 29.4\,mW
+reported by the prior single-channel implementation~\cite{prior_impl} --- a 37\,\% reduction
+despite a 16$\times$ increase in useful data throughput. Two architectural improvements
+account for this: the PPI/DMA acquisition pipeline allows the CPU to remain in low-power
+sleep between BLE events rather than spinning in a polling loop, and removal of the UART
+peripheral eliminates a further source of continuous power draw. A full breakdown of power
+consumption across channel and sampling rate configurations, and separately for the Nordic
+module alone versus the combined Nordic and Intan system, is presented in
+Section~\ref{sec:results_power}.
+
+\subsection{Neural Signal Recording}
+\label{sec:results_recording}
+
+\TODO{}
+
+\subsection{BLE Throughput and Packet Loss}
+\label{sec:results_ble}
+
+\TODO{}
+
+\subsection{Stimulation Waveform Validation}
+\label{sec:results_stim}
+
+\TODO{}
+
+\subsection{Power Consumption}
+\label{sec:results_power}
+
+\TODO{}
+
+\subsection{Electromagnetic Interference in the WPT Field}
+\label{sec:results_noise}
+
+\TODO{}
+
+
+\begin{comment}
+\subsection{SPI Transaction Time Measurement}
+
+Figure~\ref{fig:spi_burst_cursors} shows the oscilloscope cursor measurement 
+used to determine the SPI transaction time. Cursors were placed at the start 
+and end of a burst of 67 consecutive SPI transactions, yielding a total burst 
+duration of 346\,\textmu s and a mean transaction time of 5.164\,\textmu s 
+(Equation~\ref{eq:spi_transaction_time}). The built-in Period measurement 
+function confirmed a value in the same range but exhibited cycle-to-cycle 
+jitter, motivating the use of the cursor-based aggregate measurement as the 
+calibration value.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figures/spi_burst_cursors.png}
+    \caption{Oscilloscope cursor measurement of 67 consecutive SPI transactions 
+    on the Tektronix DPO~2024. The total burst duration of 346\,\textmu s 
+    yields a mean transaction time of $346/67 = 5.164$\,\textmu s, used as 
+    the calibration constant \texttt{SPI\_TRANSACTION\_TIME\_US} in the 
+    stimulation firmware.}
+    \label{fig:results_spi}
+\end{figure}
+
+\subsection{Stimulation Waveform Validation}
+\label{sec:results_stim}
+
+Figure~\ref{fig:stim_oscilloscope} shows the biphasic stimulation waveform 
+measured at the Intan RHS2116 output using the Tektronix DPO~2024 oscilloscope. 
+The waveform exhibits the expected charge-balanced biphasic shape: a cathodic 
+(negative) phase, followed by an interphase gap, and an anodic (positive) phase. 
+The measured phase durations and amplitudes are consistent with the parameters 
+configured in the GUI stimulation interface (Figure~\ref{fig:stim_gui}).
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.53\textwidth}
+        \centering
+        \includegraphics[height=5cm]{figures/oscilloscope_stim.png}
+        \caption{Oscilloscope trace of the biphasic stimulation waveform.}
+        \label{fig:stim_oscilloscope}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.43\textwidth}
+        \centering
+        \includegraphics[height=5cm]{figures/gui_stim_window.png}
+        \caption{Corresponding stimulation parameters as configured 
+        in the GUI.}
+        \label{fig:stim_gui}
+    \end{subfigure}
+    \caption{Stimulation waveform validation. The oscilloscope trace 
+    confirms correct biphasic pulse shape, timing, and charge balance 
+    consistent with the GUI-configured parameters.}
+    \label{fig:stim_combined}
+\end{figure}
+
+\subsection{Neural Signal Recording}
+
+Figure~\ref{fig:gui_recording} shows a screenshot of the GUI during live 
+16-channel recording from the Intan RHS2116. All 16 channels are displayed 
+simultaneously at 2\,kHz per channel, with real-time packet loss monitoring 
+visible in the status bar.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{figures/gui_recording.png}
+    \caption{GUI screenshot during live 16-channel neural signal recording. 
+    Voltage traces for all 16 Intan RHS2116 channels are rendered in real 
+    time at 2\,kHz per channel. The status bar displays throughput and 
+    packet loss metrics.}
+    \label{fig:gui_recording}
+\end{figure}
+
+\end{comment}
