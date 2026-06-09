@@ -16,15 +16,18 @@ shape, timing, and charge balance across a range of configured parameters
 live acquisition from the RHS2116, with all configured channels rendered in real time in
 the GUI (Section~\ref{sec:results_recording}).
 
-Power consumption of the peripheral was measured at 18.6\,mW under continuous 16-channel
-recording at 2\,kHz per channel (measured supply voltage 3.020\,V), compared to 29.4\,mW
-reported by the prior single-channel implementation~\cite{prior_impl} --- a 37\,\% reduction
-despite a 16$\times$ increase in useful data throughput. Two architectural improvements
-account for this: the PPI/DMA acquisition pipeline allows the CPU to remain in low-power
-sleep between BLE events rather than spinning in a polling loop, and removal of the UART
-peripheral eliminates a further source of continuous power draw. A full breakdown of power
-consumption across channel and sampling rate configurations, and separately for the Nordic
-module alone versus the combined Nordic and Intan system, is presented in
+Power consumption of the nRF52832 peripheral module was measured at 18.6\,mW under
+continuous 16-channel recording at 2\,kHz per channel at the measured supply voltage
+of 3.020\,V (equivalent to 20.4\,mW at a nominal 3.3\,V). This compares favourably
+with the 29.4\,mW at 3.3\,V reported by the prior single-channel
+implementation~\cite{prior_impl}: at a common reference voltage of 3.3\,V, the present
+work achieves a 31\,\% reduction in module power while simultaneously increasing the
+channel count 16-fold. Two architectural improvements account for this: the PPI/DMA
+acquisition pipeline allows the CPU to remain in low-power sleep between BLE events
+rather than spinning in a polling loop, and removal of the UART peripheral eliminates
+a further source of continuous power draw. Combined power consumption of the nRF52832
+and Intan RHS2116 was measured at 61.3\,mW at 3.6\,V in the same 16-channel,
+2\,kHz per channel configuration. Power measurements are presented in
 Section~\ref{sec:results_power}.
 
 \subsection{Neural Signal Recording}

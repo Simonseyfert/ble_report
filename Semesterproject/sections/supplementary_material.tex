@@ -92,11 +92,51 @@ t_{\text{2 packets}} &= 299 + 100 = 399~\text{\textmu s} \\
 t_{\text{3 packets}} &= 299 + 200 = 499~\text{\textmu s}
 \end{align}
 
-This gives a total preemption window of approximately 400--500~\textmu s per 
+This gives a total preemption window of approximately 400--500~\textmu s per
 connection event, occurring every 7.5--10~ms.
+
+\subsection*{Meaning of $t_{n\text{ISR}(0)}$}
+
+$t_{n\text{ISR}(0)}$ is the minimum time between two consecutive priority-0 ISR
+firings \emph{within} a single connection event (e.g., between two consecutive
+\texttt{RadioProcessing} interrupts when multiple packets are sent). The minimum
+of 183\,\textmu{}s means application code and hardware-interrupt handlers (such as
+\texttt{timer2\_count\_handler}) are guaranteed at least 183\,\textmu{}s of
+uninterrupted execution between consecutive radio events. Since the DMA buffer swap
+in the critical section takes approximately 250\,ns, it completes well within this
+window even in the worst case.
+
+\subsection*{Worst-case preemption}
+
+Using the maximum column values from Table~\ref{tab:softdevice_timing} (note:
+$t_{\text{ISR}(4)}$ has no published maximum; typical value of 40\,\textmu{}s used):
+\begin{align}
+t_{\text{1 pkt, max}} &= 65 + 24 + 67 + 250 + 2 \times 40 = 486~\text{\textmu{}s} \\
+t_{\text{2 pkts, max}} &= 486 + (67 + 40) = 593~\text{\textmu{}s} \\
+t_{\text{3 pkts, max}} &= 486 + 2 \times (67 + 40) = 700~\text{\textmu{}s}
+\end{align}
+
+At the maximum SPI rate of 128\,kHz (2-channel recording configuration), the time
+available to complete the DMA buffer swap before the active buffer overflows is:
+\begin{equation}
+t_{\text{swap window}} =
+(\texttt{DMA\_BUF\_SAMPLES} - 819) \times \frac{1}{128\,\text{kHz}}
+= 205 \times 7.8125~\mu\text{s} \approx 1.6~\text{ms}
+\end{equation}
+The worst-case preemption of 700\,\textmu{}s is safely within the 1.6\,ms window.
+At the default configuration (16 channels, 2\,kHz per channel, 32\,kHz SPI), the
+window expands to $205 \times 31.25~\mu\text{s} \approx 6.4\,\text{ms}$.
 
 
 \subsection{Practical Tips}
+\TODO{}
+
+\subsubsection{Software Requirements: Running the System}
+\label{app:software_run}
+\TODO{}
+
+\subsubsection{Software Requirements: Firmware Development}
+\label{app:software_dev}
 \TODO{}
 
 \subsubsection{Code Development}
@@ -110,7 +150,55 @@ channel switches were sometimes observed (due to Convert(63) architecture). in t
 \TODO{}
 
 \subsubsection{Flashing Code on Non-Development Kit nRF52832}
-\TODO{}
+\label{app:flash_ndk}
+
+The standalone nRF52832 modules (SparkFun Breakout, custom QFN48, and custom WLCSP49)
+do not have an on-board J-Link debugger and must be flashed using the nRF52832
+Development Kit as a programmer. The procedure follows the SparkFun nRF52832 Breakout
+Board Hookup Guide~\cite{sparkfun_hookup_guide}\footnote{\url{https://learn.sparkfun.com/tutorials/nrf52832-breakout-board-hookup-guide/all}},
+which also explains how to connect and flash the board in detail. The SWD wiring
+connections are listed in Table~\ref{tab:flash_wiring} and illustrated in
+Figure~\ref{fig:flash_green_board}.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/flash_green_board.png}
+    \caption{SWD connection between the nRF52832 DK (left, programmer) and a
+    custom WLCSP49 peripheral module (right) for firmware flashing. Wire colours
+    correspond to Table~\ref{tab:flash_wiring}.}
+    \label{fig:flash_green_board}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{SWD wiring for flashing a standalone nRF52832 module via the nRF52832 DK.}
+\label{tab:flash_wiring}
+\begin{tabular}{lll}
+\toprule
+\textbf{nRF52832 DK Pin} & \textbf{Wire Colour} & \textbf{Peripheral Pin} \\
+\midrule
+VDD    & Red       & VDD    \\
+VTG    & Turquoise & VDD    \\
+SWDIO  & Green     & SWDIO  \\
+SWDCLK & Pink      & SWDCLK \\
+RESET  & Orange    & RST    \\
+GND    & Black     & GND    \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Note on VDD and VTG.}
+VDD is connected from the DK to the peripheral to power the module (the custom modules
+have no USB port). VTG is the J-Link voltage reference input: connecting it to the
+peripheral's VDD rail tells the J-Link to match its SWD I/O levels to 3.3\,V,
+ensuring reliable communication. Both wires connect to the same VDD rail on the
+peripheral.
+
+\noindent\textbf{Important: disconnect the DK after flashing.}
+If the DK remains connected, the BLE central may connect to the DK's own nRF52832
+target instead of the intended peripheral. Since no Intan chip is connected to the DK,
+this results in all-zero recorded signals. The DK must be powered off or its USB
+cable disconnected before starting a recording session.
 
 \subsubsection{GUI}
 \TODO{}

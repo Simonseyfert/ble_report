@@ -3,8 +3,9 @@
 The starting point for this project was a prior implementation~\cite{prior_impl} that
 demonstrated the BLE communication pipeline, achieving 2\,kHz sampling on a single channel
 via a CPU-polling loop. This approach had a fundamental limitation: the Nordic SoftDevice
-preempts the application at every BLE connection event (every 7.5--10\,ms) to handle radio
-operations at interrupt priority level~0 and stack operations at priority level~4. For a
+preempts the application at every BLE connection event (every 7.5--10\,ms), occupying
+interrupt priority levels 0, 1, and~4; since application code is restricted to the
+remaining priority levels, the SoftDevice can always preempt application tasks. For a
 peripheral connection event transmitting two to three data packets, as required by the
 throughput demands of this system, the total preemption time per connection event is
 approximately 400--500\,\textmu{}s (see Appendix~\ref{app:softdevice_timing})
@@ -17,7 +18,7 @@ demonstrated without real SPI data.
 
 The present work addresses these limitations by replacing the CPU-polling loop with a
 fully hardware-driven acquisition pipeline (PPI and EasyDMA), decoupling data acquisition
-entirely from CPU availability. The system supports a configurable selection of 1--16
+almost entirely from CPU availability. The system supports a configurable selection of 1--16
 channels with adjustable per-channel sampling rates, charge-balanced biphasic electrical
 stimulation with per-channel amplitude and timing control, and a configurable upper
 amplifier bandwidth~$f_H$. Recording configuration and state are persisted to non-volatile
@@ -108,7 +109,7 @@ The wireless neural recording and stimulation system comprises four main hardwar
     the nRF52832 central via BLE, which forwards it to the host laptop 
     via RTT over USB. 
     \textit{Image sources: Intan RHS2116~\cite{intan_user_guide}; 
-    nRF52832 DK~\cite{nordic_dk_farnell}; 
+    nRF52832 Development Kit (DK)~\cite{nordic_dk_farnell};
     Bluetooth logo~\cite{bluetooth_svg_wikipedia}; 
     laptop icon made by Vectors Market from Flaticon~\cite{flaticon_laptop}.}}
     \label{fig:system_overview}
@@ -116,7 +117,10 @@ The wireless neural recording and stimulation system comprises four main hardwar
 
 Data flow proceeds as follows. In recording mode, the peripheral drives the Intan chip to continuously sample neural signals via SPI. Acquired samples are written directly to an active DMA buffer without CPU involvement, using the nRF52832's EasyDMA peripheral in list mode. Once the active buffer is full, the roles of the two buffers are swapped: the previously active buffer becomes inactive, and data acquisition continues into the newly active buffer. The data in the inactive buffer is then copied into a larger ring buffer, from which the CPU assembles structured packets for BLE transmission to the central. Unlike data acquisition, packet assembly and BLE transmission require CPU involvement. The central receives the packets and forwards them to the host computer via SEGGER Real-Time Transfer (RTT), a high-speed debug channel provided by the J-Link interface. The GUI parses the RTT data stream and renders voltage traces in real time.
 
-Two nRF52832 Development Kits (DKs) were used rather than more compact alternatives because they provide integrated SEGGER J-Link interfaces, enabling real-time debugging throughout firmware development.
+Both nRF52832 nodes were operated as Development Kits (DKs) --- evaluation boards with
+an integrated SEGGER J-Link debugger --- rather than more compact modules, to facilitate
+firmware debugging through their integrated J-Link interfaces and direct
+Real-Time Transfer (RTT) communication throughout development.
 
 
 \begin{comment}
@@ -131,7 +135,8 @@ For the firmware development, the nrf52832 development kits (DKs) were used as t
 \subsubsection{Neural Recording/Stimulation Chip --- Intan RHS2116}
 
 The Intan RHS2116 is a 16-channel bidirectional neural interface chip combining
-per-channel amplification, analog-to-digital conversion, and current-mode stimulation.
+per-channel amplification, analog-to-digital conversion, and current-mode
+stimulation.\footnote{Intan RHS2116 datasheet: \url{https://intantech.com/files/Intan_RHS2116_datasheet.pdf}~\cite{intan_rhs2116_datasheet}.}
 Communication with the chip follows a 32-bit SPI transaction format: each transaction
 consists of a 4-byte frame carrying a command type, register address, and 16-bit data
 payload. The command set distinguishes between three primary operation classes:
@@ -156,10 +161,24 @@ transaction, which is exploited in the stimulation pipeline to switch the curren
 polarity instantaneously between the cathodic and anodic phases
 (Section~\ref{sec:stim_architecture}).
 
+\paragraph{Amplifier noise and input range.}
+Each recording channel incorporates a high-gain amplifier with a band-pass
+response and an input range of $\pm5$\,mV, providing sufficient headroom for
+the signal amplitudes expected in neural recordings~\cite{intan_rhs2116_datasheet}.
+The amplifier has a typical noise floor of 2.4\,\textmu{}V$_\text{rms}$~\cite{intan_rhs2116_datasheet}.
+Following the standard peak-to-peak noise convention, the commonly used conversion
+factor of $6.6\times$ the rms value---exceeded only 0.1\,\% of the
+time~\cite[Chapter~1]{zumbahlen2011linear}\cite[Chapter~1]{jung2004op}---gives
+a typical peak-to-peak noise floor of approximately
+$6.6 \times 2.4 \approx 15.8$\,\textmu{}V$_\text{pp}$.
+This characterises the practical sensitivity floor of the recording system
+and is directly relevant to the noise characterisation presented in
+Section~\ref{sec:results_noise}.
+
 \paragraph{Chip initialisation.}
 The initialisation sequence implemented in \texttt{rhs\_initialize\_chip()} follows the
-example procedure given in the RHS2116 datasheet~\cite{intan_rhs2116_datasheet}, with
-the following modifications. After a 250\,ms power-on delay and a dummy \texttt{READ(255)}
+example procedure given in the RHS2116 datasheet~\cite{intan_rhs2116_datasheet}
+(pp.~44--45), with the following modifications. After a 250\,ms power-on delay and a dummy \texttt{READ(255)}
 to reset the on-chip SPI controller, stimulation is disabled (Registers 32 and 33 set
 to zero) before any other registers are written, preventing transient stimulation
 artefacts during initialisation. Register 38 is set to \texttt{0xFFFF} to power up all
@@ -220,9 +239,9 @@ When this
 assembly was placed inside the wireless power transfer transmitter coil field, significant
 electromagnetic interference was observed on the recorded signals; this is discussed
 further in Section~\ref{sec:results_noise}. % \TODO{adjust section ref}
-Power consumption of the Intan chip alone was estimated by subtracting the Nordic-only
-measurement from the combined system measurement, as reported in
-Section~\ref{sec:results_power}.
+Power consumption was measured for the nRF52832 module alone and for the combined
+nRF52832 and Intan RHS2116 system, both in the 16-channel, 2\,kHz per channel
+configuration; results are reported in Section~\ref{sec:results_power}.
 
 \subsubsection{Microcontroller --- Nordic nRF52832}
 The Nordic nRF52832 is a 32-bit ARM Cortex-M4F system-on-chip (SoC) with an
@@ -245,14 +264,17 @@ interfaces for real-time debugging via RTT throughout development. The
 peripheral was subsequently miniaturized through a progression of smaller
 modules, as described in Section~\ref{sec:miniaturization}. The central DK
 remains powered from the host computer's USB port to eliminate noise from
-external power adapters.
+external power adapters. Software requirements for running the system and
+for firmware development are listed in Appendices~\ref{app:software_run}
+and~\ref{app:software_dev} respectively.
 
 \subsubsection{Hardware Miniaturization}
 \label{sec:miniaturization}
 
 Following successful firmware validation on the nRF52832 DK, the peripheral
 was progressively miniaturized toward a form factor compatible with implantable
-use. Figure~\ref{fig:miniaturization} shows the three stages of this
+use, with end-to-end functionality verified at each stage before proceeding
+to the next. Figure~\ref{fig:miniaturization} shows the three stages of this
 progression. The first step replaced the DK with a SparkFun nRF52832 Breakout
 board~\cite{sparkfun_nrf52832}, which retains USB connectivity and accessible
 pin headers while being significantly more compact. The subsequent two stages
@@ -267,29 +289,55 @@ as described in Section~\ref{sec:results_wpt}. % or wherever WPT ends up
 
 \begin{figure}[h]
     \centering
-    \begin{subfigure}[b]{0.3\textwidth}
+    \begin{subfigure}[b]{0.22\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/nrf_sparkfun.png}
         \caption{SparkFun nRF52832 Breakout~\cite{sparkfun_nrf52832}}
     \end{subfigure}
     \hfill
-    \begin{subfigure}[b]{0.3\textwidth}
+    \begin{subfigure}[b]{0.22\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/nrf_peripheral_qfn_blue.png}
         \caption{Custom module, QFN48 package}
     \end{subfigure}
     \hfill
-    \begin{subfigure}[b]{0.3\textwidth}
+    \begin{subfigure}[b]{0.22\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/nrf_peripheral_wlcsp_green.png}
         \caption{Custom module, WLCSP49 package}
     \end{subfigure}
-    \caption{Miniaturization progression of the nRF52832 peripheral module.
-    From left to right: SparkFun breakout board (initial development), custom
-    QFN48 module, and custom WLCSP49 module (most compact). All three run
-    identical firmware.}
+    \hfill
+    \begin{subfigure}[b]{0.22\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/nrf_intan_oscillator.png}
+        \caption{Flex PCB co-integrating nRF52832 and Intan RHS2116}
+    \end{subfigure}
+    \caption{Miniaturization progression toward an integrated neural recording module.
+    (a) SparkFun nRF52832 Breakout board, used for initial development.
+    (b) Custom QFN48 nRF52832 module.
+    (c) Custom WLCSP49 nRF52832 module (most compact standalone module).
+    (a)--(c) run identical firmware and each interface with the Intan RHS2116 via an
+    external carrier board (see Figure~\ref{fig:wiring_connector}).
+    (d) Prototype flex PCB co-integrating the nRF52832 and Intan RHS2116 on the same
+    substrate, with an on-board square-wave oscillator switchable to Intan input pin~0,
+    intended for calibration signal injection in the wireless power transfer field
+    (see Section~\ref{sec:results_noise}).}
     \label{fig:miniaturization}
 \end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\textwidth]{figures/wiring_intan_wlcsp_connector_board.png}
+    \caption{Connection setup for the standalone nRF52832 modules. An intermediate
+    carrier board routes SPI signals and power between the nRF52832 module pin header
+    and the standard Intan headstage connector. The QFN48 module is shown; the
+    SparkFun breakout and WLCSP49 modules use the same carrier board with equivalent
+    connections.}
+    \label{fig:wiring_connector}
+\end{figure}
+
+Firmware flashing of the standalone modules and the required software installation are
+described in Appendices~\ref{app:flash_ndk} and~\ref{app:software_dev} respectively.
 
 \textcolor{red}{refer to appendix on how to flash the 3 boards (essentially all given on sparkboard website)}
 
@@ -339,22 +387,31 @@ event releases it high at completion, with no CPU involvement.
 
 Timer1 is configured as a 32-bit free-running timer with
 \texttt{SHORT\_COMPARE0\_CLEAR}, so it resets and restarts automatically on each
-compare event. Its period is set dynamically in \texttt{acquisition\_start()} from
-the configured per-channel rate \texttt{g\_rec\_rate\_hz}. In multi-channel mode,
-the period accounts for the 16-channel \texttt{CONVERT(63)} cycling:
+compare event. Its period is set in \texttt{acquisition\_start()} by writing
+Timer1's \texttt{CC[0]} register directly with a precomputed tick count. The
+nRF52832 timers run at 16\,MHz (prescaler\,0), giving 1\,tick\,$=$\,62.5\,ns.
+Writing ticks directly, rather than converting through a µs API, avoids integer
+rounding errors in the µs-to-tick conversion. In multi-channel mode the compare
+value is:
 \begin{equation}
-    T_{\text{Timer1}} = \frac{1\,000\,000}{\texttt{g\_rec\_rate\_hz} \times 16}
-    \;\mu\text{s}
+    \texttt{CC[0]} =
+    \left\lfloor \frac{1\,000\,000 + \lfloor \texttt{g\_rec\_rate\_hz}/2 \rfloor}
+                      {\texttt{g\_rec\_rate\_hz}} \right\rfloor \;\text{ticks}
+    \;=\; \text{round}\!\left(\frac{1\,000\,000}{\texttt{g\_rec\_rate\_hz}}\right)
+    \;\text{ticks}
 \end{equation}
-For example, at 2\,kHz per channel this gives $T = 31.25$\,\textmu s, producing a
-total SPI transaction rate of 32\,kHz. In single-channel mode,
-\texttt{CONVERT($k$)} is issued directly and the period simplifies to:
+which, at 62.5\,ns per tick, corresponds to
+$T_{\text{Timer1}} = 1\,000\,000 / (\texttt{g\_rec\_rate\_hz} \times 16)\;\mu\text{s}$.
+For example, at 2\,kHz per channel: \texttt{CC[0]}\,$= 500$\,ticks\,$= 31.25$\,\textmu s,
+producing a total SPI transaction rate of 32\,kHz. In single-channel mode,
+\texttt{CONVERT($k$)} is issued directly and \texttt{CC[0]} is set via
+\texttt{nrf\_drv\_timer\_us\_to\_ticks()}, giving:
 \begin{equation}
     T_{\text{Timer1}} = \frac{1\,000\,000}{\texttt{g\_rec\_rate\_hz}} \;\mu\text{s}
 \end{equation}
 Timer2 is configured in counter mode, incrementing on each \texttt{SPIM END} event.
-When its count reaches a threshold of 819 transactions (40\,\% of
-\texttt{DMA\_BUF\_SAMPLES} $= 2048$), its \texttt{COMPARE0} interrupt fires,
+When its count reaches a threshold of 819 transactions (80\,\% of
+\texttt{DMA\_BUF\_SAMPLES} $= 1024$), its \texttt{COMPARE0} interrupt fires,
 triggering \texttt{timer2\_count\_handler}.
 
 \textcolor{red}{what did aligned change?}
@@ -362,14 +419,17 @@ triggering \texttt{timer2\_count\_handler}.
 \subsubsection{Double-Buffering and Ring Buffer}
 
 Two DMA buffers, \texttt{dma\_buffer\_a} and \texttt{dma\_buffer\_b}, each
-\texttt{DMA\_BUF\_BYTES} $= 8192$\,bytes ($2048~\text{samples} \times
-4~\text{bytes/sample}$), are maintained as a double-buffer pair, each aligned to
-its own size in memory to prevent EasyDMA boundary crossing. The invariant is
+\texttt{DMA\_BUF\_BYTES} $= 4096$\,bytes (\texttt{DMA\_BUF\_SAMPLES} $= 1024$
+samples $\times$ 4\,bytes/sample), are maintained as a double-buffer pair. Each
+buffer is aligned to its own size in memory (\texttt{\_\_attribute\_\_((aligned(DMA\_BUF\_BYTES)))}).
+The nRF52832 EasyDMA does not strictly require aligned buffers, but the alignment
+is applied as a precautionary measure to prevent potential data corruption from
+memory boundary crossing in EasyDMA list mode. The invariant is
 strict: the EasyDMA engine always writes exclusively to \texttt{active\_dma\_buffer},
 while the CPU always reads exclusively from \texttt{inactive\_dma\_buffer}. No
 buffer is ever accessed by both sides simultaneously.
 
-When Timer2 reaches a threshold of 819 transactions (40\,\% of
+When Timer2 reaches a threshold of 819 transactions (80\,\% of
 \texttt{DMA\_BUF\_SAMPLES}), \texttt{timer2\_count\_handler} fires. The buffer
 swap is performed inside a SoftDevice critical section
 (\texttt{sd\_nvic\_critical\_region\_enter/exit}), which prevents preemption by
@@ -394,11 +454,12 @@ pointer rather than assumed from the threshold, since the two may differ due to
 SoftDevice preemption. Timer1 is paused for the duration of the pointer swap ---
 approximately 10--15 instructions at 64\,MHz, guaranteed under 250\,ns --- and
 immediately resumed unless a stop has been requested, in which case it remains
-paused and acquisition is halted cleanly at the buffer boundary. At a total SPI
-rate of 32\,kHz, the 819-transaction threshold corresponds to 25.6\,ms of
-acquisition headroom before the active buffer could overflow, far exceeding the
-400--500\,\textmu s SoftDevice preemption window described in
-Appendix~\ref{app:softdevice_timing}.
+paused and acquisition is halted cleanly at the buffer boundary. When the threshold fires at transaction 819, the active buffer has
+$1024 - 819 = 205$ slots remaining before it would overflow. At the maximum SPI
+rate of 128\,kHz (reached in the 2-channel configuration), this gives a swap
+window of $205 \times 7.8125\;\mu\text{s} \approx 1.6\,\text{ms}$, which far
+exceeds both the 250\,ns critical section and the worst-case SoftDevice preemption
+of 700\,\textmu{}s derived in Appendix~\ref{app:softdevice_timing}.
 
 After the critical section, \texttt{samples\_done} samples are copied from the
 inactive buffer into the ring buffer. Each 4-byte DMA entry contains the full
@@ -408,8 +469,8 @@ samples from channels set in \texttt{g\_channel\_mask} are forwarded; the runnin
 variable \texttt{g\_channel\_phase} tracks which physical channel each DMA slot
 corresponds to across buffer boundaries, since the \texttt{CONVERT(63)} cycle
 does not reset at buffer swap boundaries. In single-channel mode, all samples are
-copied directly. The ring buffer holds \texttt{RING\_BUF\_SAMPLES} $= 4096$
-samples (8192\,bytes at 2\,bytes per sample), with read and write indices
+copied directly. The ring buffer holds \texttt{RING\_BUF\_SAMPLES} $= 6144$
+samples (12\,288\,bytes at 2\,bytes per sample), with read and write indices
 maintained as byte offsets with modular wrap-around.
 
 The ring buffer decouples the hardware-driven write side from the software-driven
@@ -428,6 +489,13 @@ loop to restart the BLE send chain if it has stalled.
 The SPIM0 peripheral transitions through several initialisation states across
 the recording and stimulation lifecycle, as the CS pin ownership switches between
 the driver and GPIOTE depending on the operating mode.
+
+\paragraph{SPI pin assignment.}
+The four SPI signals are assigned in \texttt{sdk\_config.h}:
+\texttt{SPI\_SCK\_PIN\,=\,28}, \texttt{SPI\_MOSI\_PIN\,=\,29},
+\texttt{SPI\_SS\_PIN\,=\,30} (\texttt{SS}\,$\equiv$\,\texttt{CS}),
+\texttt{SPI\_MISO\_PIN\,=\,31}. These pin numbers apply to all supported
+nRF52832 modules (SparkFun Breakout, QFN48, and WLCSP49).
 
 \paragraph{Startup and chip initialisation.}
 At startup, \texttt{spim\_init()} initialises SPIM0 with driver-controlled CS
@@ -761,7 +829,7 @@ Pre-built executables for Windows, macOS, and Linux are available as release
 artefacts on the project repository
 (\url{https://github.com/Simonseyfert/ble_spi_intan}; access upon request at
 \href{mailto:simon.seyfert@epfl.ch}{simon.seyfert@epfl.ch} or
-\href{mailto:simonseyfert@gmail.com}{simonseyfert@gmail.com}),
+\href{mailto:simon.seyfert@tum.de}{simon.seyfert@tum.de}),
 generated via automated GitHub Actions workflows; the Python source is also
 available for direct execution. A detailed usage guide is provided in
 Appendix~\ref{app:gui_guide} and on the repository.

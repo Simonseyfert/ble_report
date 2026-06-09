@@ -1,20 +1,47 @@
 \section{Introduction}
 
-This work targets electrocorticography (ECoG), in which surface electrode 
-arrays record local field potentials (LFPs) from the cortical surface. LFPs 
-contain frequency components up to approximately 300\,Hz~\cite{reimann2013biophysically}, 
-which by the Nyquist-Shannon sampling theorem~\cite{shannon1949} requires a 
-minimum sampling rate of 600\,Hz per channel. In practice, sampling at the 
-theoretical minimum introduces reconstruction artefacts and leaves no margin 
-for anti-aliasing filter roll-off. A sampling rate of 2\,kHz per channel was 
-therefore chosen, providing more than three times the Nyquist rate and ensuring 
+Surface electrode arrays placed on neural tissue record local field
+potentials (LFPs), reflecting the aggregate synaptic activity of the
+underlying neuronal population. When applied to the cerebral cortex
+this modality is termed electrocorticography (ECoG); the present system
+is developed with implantation on the rat spinal cord as the primary
+target application, with the hardware and firmware architecture equally
+applicable to other surface recording scenarios.
+
+Compared to scalp EEG, surface electrodes are in much closer proximity
+to the target tissue, substantially reducing spatial averaging: the
+spatial spread of subdural cortical ECoG can be as local as approximately
+0.5--5\,mm~\cite{schwartz2006brain, dubey2019cortical, thielen2023making}.
+Recorded amplitudes are correspondingly larger than EEG; for cortical
+ECoG, reported values range from hundreds of microvolts to several
+millivolts~\cite{thielen2023making} (species unspecified), while
+whisker-stimulation-evoked responses in rat cortex have been measured
+in the approximate range of 150--850\,\textmu{}V~\cite{buzsaki2012origin,
+helmchen1999vivo}. For spinal cord recording, invasive depth electrode
+measurements in the rat spinal dorsal horn report C-fibre-evoked field
+potentials in the range of approximately 250--500\,\textmu{}V~\cite{sandkuhler1998induction},
+and cortically-evoked responses recorded with a penetrating silicon array
+in rat spinal cord reach on the order of 300\,\textmu{}V~\cite{song2017spinal};
+surface electrode recordings are expected to be lower. The system must
+therefore achieve high sensitivity, with the ability to faithfully resolve
+signals in the range of tens of microvolts at high signal-to-noise ratio.
+
+LFP signals contain frequency components up to approximately
+300\,Hz~\cite{reimann2013biophysically}, which by the Nyquist--Shannon
+sampling theorem~\cite{shannon1949} requires a minimum sampling rate
+of 600\,Hz per channel. In practice, sampling at the theoretical minimum
+introduces reconstruction artefacts and leaves no margin for anti-aliasing
+filter roll-off. A sampling rate of 2\,kHz per channel was therefore
+chosen, providing more than three times the Nyquist rate and ensuring
 high-fidelity waveform reconstruction.
 
-Beyond sufficient sampling rate, temporal regularity of the acquired samples 
-is critical. Standard spectral analysis methods such as the discrete Fourier 
-transform (DFT) assume uniformly spaced samples; irregular sampling intervals 
-introduce spectral artefacts that corrupt frequency-domain representations. 
-This requirement directly motivates the hardware-driven acquisition 
-architecture described in Section~\ref{sec:methods}: by delegating SPI timing entirely to the PPI subsystem and EasyDMA, sample intervals are 
-determined by a hardware timer rather than software scheduling, eliminating 
-jitter from CPU preemption and SoftDevice radio events.
+Beyond sufficient sampling rate, temporal regularity of the acquired
+samples is critical. Standard spectral analysis methods such as the
+discrete Fourier transform (DFT) assume uniformly spaced samples;
+irregular sampling intervals introduce spectral artefacts that corrupt
+frequency-domain representations. This requirement directly motivates
+the hardware-driven acquisition architecture described in
+Section~\ref{sec:methods}: by delegating SPI timing entirely to the
+PPI subsystem and EasyDMA, sample intervals are determined by a hardware
+timer rather than software scheduling, eliminating jitter from CPU
+preemption and SoftDevice radio events.
