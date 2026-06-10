@@ -1,9 +1,37 @@
 \section{Conclusion}
 
-\noindent This section provides a brief synthesis of the work and its contributions. In its generic form, it highlights that a reproducible, data\,driven methodology was presented, representative results were obtained, and practical lessons were drawn for life sciences applications.
+This work demonstrates a complete wireless neural recording and stimulation system
+built on off-the-shelf components and validated across all major functional blocks.
+The central contribution is the replacement of a CPU-polling acquisition loop with a
+fully hardware-driven pipeline using the nRF52832 PPI subsystem and EasyDMA, which
+decouples data acquisition from CPU availability and eliminates the sample jitter
+inherent in software-scheduled SPI transactions. The result is a system that sustains
+BLE throughput of up to approximately 540\,kbps with real neural acquisition data
+across a configurable selection of 1--16 channels --- a capability the prior
+implementation could not demonstrate even with synthetic data.
 
-\noindent Replace this placeholder with project\,specific takeaways: summarize the main findings without restating all details, note limitations that matter most, and outline concrete next steps (e.g., additional validation, broader datasets, or methodological extensions).
+The hardware-driven architecture yields a measurable power benefit: the nRF52832
+peripheral module consumes 20.4\,mW at a nominal 3.3\,V supply, a 31\,\% reduction
+compared to the 29.4\,mW reported by the prior single-channel CPU-polling
+implementation, achieved while increasing the channel count 16-fold. Two architectural
+changes account for this: the PPI/DMA pipeline allows the CPU to remain in low-power
+sleep between BLE connection events, and removal of the UART peripheral eliminates a
+further source of continuous power draw. Combined system power (nRF52832 and Intan
+RHS2116) was measured at 61.3\,mW at 3.6\,V across all tested configurations, with
+power scaling approximately as $V^{1.47}$ between 3.0\,V and 3.6\,V supply.
 
-\subsection{Conclusion Subsection}
+End-to-end operation under wireless power was demonstrated with a compact WLCSP49
+nRF52832 module ($3.0 \times 3.2$\,mm). Electromagnetic interference measurements
+inside the WPT transmitter coil field revealed that carrier board wiring --- rather
+than the WPT field acting directly on the silicon --- is the dominant noise pickup
+mechanism: shorting a channel directly on the Intan die reduced interference more
+than three-fold compared to the carrier board configuration. This finding clarifies
+the path forward: PCB co-integration of the nRF52832 and Intan RHS2116 on a single
+substrate with short, shielded traces is the critical next step toward WPT
+compatibility, rather than a fundamental redesign of the wireless architecture.
 
-\lipsum[3]
+The immediate next step is the realisation of this co-integrated PCB, followed by
+microfabrication on a thin-film substrate compatible with implantable surface electrode
+arrays. Validation should then proceed first in vitro, confirming signal integrity and
+noise performance in a controlled environment, before advancing to chronic in vivo
+implantation in the rat spinal cord model for which this system was designed.

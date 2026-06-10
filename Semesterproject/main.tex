@@ -7,6 +7,7 @@
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{multirow}
+\usepackage{tikz}
 % Add natbib for author-year or numeric citations
 \usepackage{hyperref}
 \usepackage{url}
@@ -69,7 +70,39 @@
 \section*{Abstract}
 \addcontentsline{toc}{section}{Abstract}
 
-\lipsum[1]
+Fully implantable neural interfaces require both wireless power delivery and wireless
+data transmission to eliminate transcutaneous connections and the associated infection
+risk, patient discomfort, and long-term reliability concerns. This work presents a
+complete wireless neural recording and stimulation system targeting electrocorticography
+and spinal cord surface recordings, with the rat spinal cord as the primary application.
+The system comprises a peripheral nRF52832 module interfacing with an Intan RHS2116
+16-channel neural recording and stimulation chip via SPI, a central nRF52832 device
+receiving data over Bluetooth Low Energy~(BLE), and a Python-based graphical user
+interface for real-time visualisation, configuration, and stimulation control.
+
+The central design contribution is the replacement of the CPU-polling acquisition loop
+used in a prior single-channel implementation with a fully hardware-driven pipeline based
+on the nRF52832's Programmable Peripheral Interconnect~(PPI) subsystem and EasyDMA.
+This decouples data acquisition almost entirely from CPU availability, eliminating
+sample jitter caused by SoftDevice radio preemption and enabling the processor to remain
+in low-power sleep between BLE connection events. The system supports a configurable
+selection of 1--16 recording channels at adjustable per-channel sampling rates up to
+32\,kHz, charge-balanced biphasic electrical stimulation with per-channel amplitude and
+timing control, and persistent configuration storage in non-volatile flash memory.
+
+BLE throughput with real SPI data reached up to approximately 540\,kbps in the
+16-channel, 2\,kHz-per-channel configuration, confirming that the hardware-driven
+pipeline sustains the required data rate. Faithful reconstruction of a 300\,Hz,
+1\,mV sinusoidal test signal was demonstrated across all 16 channels simultaneously.
+The nRF52832 peripheral module consumed 18.6\,mW (equivalent to 20.4\,mW at 3.3\,V),
+a 31\,\% reduction compared to the prior single-channel implementation, while
+simultaneously increasing the channel count 16-fold. Combined system power
+(nRF52832\,+\,Intan RHS2116) was 61.3\,mW at 3.6\,V. End-to-end operation under
+wireless power was demonstrated with a compact WLCSP49 nRF52832 module. Electromagnetic
+interference measurements identified external carrier board wiring as the dominant
+noise pickup mechanism, with interference reduced more than three-fold by shorting
+a channel directly on the Intan die, pointing to PCB co-integration as the decisive
+next step toward WPT compatibility.
 
 \newpage
 

@@ -135,6 +135,7 @@ For the firmware development, the nrf52832 development kits (DKs) were used as t
 \subsection{Hardware Components and Specifications}
 
 \subsubsection{Neural Recording/Stimulation Chip --- Intan RHS2116}
+\label{sec:hardware_intan}
 
 The Intan RHS2116 is a 16-channel bidirectional neural interface chip combining
 per-channel amplification, analog-to-digital conversion, and current-mode
@@ -228,6 +229,9 @@ margin.
 
 To provide accessible connections to the RHS2116 pin header during bench-top testing,
 the chip was mounted on a small carrier board (Figure~\ref{fig:intan_board}).
+The pin assignment of the 40-pin connector, derived from the official Intan RHS 32-channel
+headstage pinout,\footnote{\url{https://intantech.com/RHS_headstages.html?tabSelect=RHS32ch}}
+is shown in Figure~\ref{fig:connector_pinout}.
 
 \begin{figure}[h]
     \centering
@@ -235,6 +239,91 @@ the chip was mounted on a small carrier board (Figure~\ref{fig:intan_board}).
     \caption{Intan RHS2116 mounted on a carrier board, providing accessible pin headers
     for bench-top SPI connections during development.}
     \label{fig:intan_board}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  pin/.style={
+    draw=black!55, rounded corners=1.5pt,
+    minimum width=7mm, minimum height=6.5mm,
+    font=\tiny\bfseries, inner sep=0pt, align=center
+  }
+]
+\colorlet{Cch}{cyan!25}
+\colorlet{Cnw}{yellow!60}
+\colorlet{Cref}{green!30}
+\colorlet{Cgnd}{orange!30}
+\colorlet{Cunk}{gray!15}
+\def\dx{0.77cm}
+\def\topy{0.9cm}
+\def\boty{0cm}
+%% TOP ROW
+\node[pin,fill=Cunk] (T1)  at ( 0*\dx,\topy) {?};
+\node[pin,fill=Cch]  (T2)  at ( 1*\dx,\topy) {31};
+\node[pin,fill=Cch]  (T3)  at ( 2*\dx,\topy) {01};
+\node[pin,fill=Cch]  (T4)  at ( 3*\dx,\topy) {30};
+\node[pin,fill=Cch]  (T5)  at ( 4*\dx,\topy) {02};
+\node[pin,fill=Cch]  (T6)  at ( 5*\dx,\topy) {29};
+\node[pin,fill=Cch]  (T7)  at ( 6*\dx,\topy) {03};
+\node[pin,fill=Cch]  (T8)  at ( 7*\dx,\topy) {28};
+\node[pin,fill=Cch]  (T9)  at ( 8*\dx,\topy) {04};
+\node[pin,fill=Cch]  (T10) at ( 9*\dx,\topy) {27};
+\node[pin,fill=Cch]  (T11) at (10*\dx,\topy) {05};
+\node[pin,fill=Cch]  (T12) at (11*\dx,\topy) {26};
+\node[pin,fill=Cch]  (T13) at (12*\dx,\topy) {06};
+\node[pin,fill=Cch]  (T14) at (13*\dx,\topy) {25};
+\node[pin,fill=Cch]  (T15) at (14*\dx,\topy) {07};
+\node[pin,fill=Cch]  (T16) at (15*\dx,\topy) {24};
+\node[pin,fill=Cunk] (T17) at (16*\dx,\topy) {?};
+\node[pin,fill=Cunk] (T18) at (17*\dx,\topy) {?};
+\node[pin,fill=Cref] (T19) at (18*\dx,\topy) {REF};
+\node[pin,fill=Cgnd] (T20) at (19*\dx,\topy) {GND};
+%% BOTTOM ROW
+\node[pin,fill=Cch]  (B1)  at ( 0*\dx,\boty) {08};
+\node[pin,fill=Cch]  (B2)  at ( 1*\dx,\boty) {23};
+\node[pin,fill=Cch]  (B3)  at ( 2*\dx,\boty) {09};
+\node[pin,fill=Cch]  (B4)  at ( 3*\dx,\boty) {22};
+\node[pin,fill=Cch]  (B5)  at ( 4*\dx,\boty) {10};
+\node[pin,fill=Cch]  (B6)  at ( 5*\dx,\boty) {21};
+\node[pin,fill=Cch]  (B7)  at ( 6*\dx,\boty) {11};
+\node[pin,fill=Cch]  (B8)  at ( 7*\dx,\boty) {20};
+\node[pin,fill=Cch]  (B9)  at ( 8*\dx,\boty) {12};
+\node[pin,fill=Cnw]  (B10) at ( 9*\dx,\boty) {19};
+\node[pin,fill=Cch]  (B11) at (10*\dx,\boty) {13};
+\node[pin,fill=Cch]  (B12) at (11*\dx,\boty) {18};
+\node[pin,fill=Cch]  (B13) at (12*\dx,\boty) {14};
+\node[pin,fill=Cch]  (B14) at (13*\dx,\boty) {17};
+\node[pin,fill=Cch]  (B15) at (14*\dx,\boty) {15};
+\node[pin,fill=Cch]  (B16) at (15*\dx,\boty) {16};
+\node[pin,fill=Cunk] (B17) at (16*\dx,\boty) {?};
+\node[pin,fill=Cunk] (B18) at (17*\dx,\boty) {?};
+\node[pin,fill=Cunk] (B19) at (18*\dx,\boty) {?};
+\node[pin,fill=Cunk] (B20) at (19*\dx,\boty) {?};
+%% BOARD ORIENTATION MARKERS
+\node[font=\scriptsize\bfseries, red!75!black, above=2pt] at (T1.north)  {\texttt{1}};
+\node[font=\scriptsize\bfseries, red!75!black, above=2pt] at (T16.north) {\texttt{16}};
+\node[font=\scriptsize\bfseries, red!75!black, below=2pt] at (B1.south)  {\texttt{17}};
+\node[font=\scriptsize\bfseries, red!75!black, below=2pt] at (B16.south) {\texttt{32}};
+%% LEGEND
+\node[pin,fill=Cch,  minimum size=5mm] at ( 1.5*\dx,-1.35cm) {};
+\node[anchor=west, font=\tiny] at ( 1.5*\dx+0.32cm,-1.35cm) {Recording channel};
+\node[pin,fill=Cnw,  minimum size=5mm] at ( 5.5*\dx,-1.35cm) {};
+\node[anchor=west, font=\tiny] at ( 5.5*\dx+0.32cm,-1.35cm) {Possibly non-functional};
+\node[pin,fill=Cref, minimum size=5mm] at (10.5*\dx,-1.35cm) {};
+\node[anchor=west, font=\tiny] at (10.5*\dx+0.32cm,-1.35cm) {REF};
+\node[pin,fill=Cgnd, minimum size=5mm] at (13.0*\dx,-1.35cm) {};
+\node[anchor=west, font=\tiny] at (13.0*\dx+0.32cm,-1.35cm) {GND};
+\node[pin,fill=Cunk, minimum size=5mm] at (15.5*\dx,-1.35cm) {};
+\node[anchor=west, font=\tiny] at (15.5*\dx+0.32cm,-1.35cm) {Unknown};
+\end{tikzpicture}
+\caption{Pin assignment of the Intan RHS2116 carrier board connector (40 pins,
+2 rows $\times$ 20 columns, shown horizontally). Numbers inside pin boxes are
+Intan channel indices. Red numbers (\texttt{1}, \texttt{16}, \texttt{17},
+\texttt{32}) are orientation markers printed on the physical board.
+Channel~19 (yellow) was intermittently non-functional during testing.
+Grey pins were not characterised.}
+\label{fig:connector_pinout}
 \end{figure}
 
 When this
@@ -287,7 +376,7 @@ step further reduces the nRF52832 chip itself from the QFN48
 (6$\times$6\,mm, 48 pins) to the WLCSP49 (3.0$\times$3.2\,mm, 49 solder
 balls) package, achieving the most compact form factor. The miniaturized
 peripheral was validated end-to-end under wireless power transfer conditions,
-as described in Section~\ref{sec:results_wpt}. % or wherever WPT ends up
+as described in Section~\ref{sec:results_noise}.
 
 \begin{figure}[h]
     \centering
@@ -340,6 +429,41 @@ as described in Section~\ref{sec:results_wpt}. % or wherever WPT ends up
 
 Firmware flashing of the standalone modules and the required software installation are
 described in Appendices~\ref{app:flash_ndk} and~\ref{app:software_dev} respectively.
+
+\paragraph{Wireless power transfer noise characterisation.}
+The miniaturized peripheral was operated under wireless power by placing the receive
+coil of the WPT system~\cite{marta_wpt} in the field of the transmitter coil.
+Figure~\ref{fig:wtp_setup} shows the Intan RHS2116 on its carrier board with the
+receive coil positioned inside the transmitter coil.
+
+To quantify electromagnetic interference pickup systematically, a recording channel
+was shorted to GND as close to the GND supply pin as possible. Channel~7 was
+selected because it is the nearest recording channel to the GND and REF pins on the
+carrier board connector (Figure~\ref{fig:connector_pinout}). A GND-shorted channel
+should ideally produce a flat zero signal; any deviation from zero represents
+interference pickup directly. Measurements were made at three positions relative to
+the transmitter coil: 30\,cm (reference baseline), 4\,cm from the coil edge, and
+fully inside the coil, in all cases with the carrier board and its wiring in place.
+
+To assess the contribution of the carrier board wiring specifically, a second
+measurement was made with channel~0 shorted directly on the Intan RHS2116 die,
+bypassing the carrier board connector entirely and minimising the effective antenna
+length and pickup loop area.
+
+Finally, the prototype flex PCB (Figure~\ref{fig:miniaturization}d), which
+integrates an on-board square-wave oscillator switchable to Intan input pin~0, was
+intended to provide a defined test signal inside the WPT field without any external
+signal wiring. Its use would allow verification that the signal path is functional
+in a co-integrated configuration.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figures/wtp_coil_rx_coil_intan.png}
+    \caption{Experimental setup for wireless power transfer validation. The Intan
+    RHS2116 on its carrier board, with the WPT receive coil attached, is shown
+    inside the transmitter coil field.}
+    \label{fig:wtp_setup}
+\end{figure}
 
 \textcolor{red}{refer to appendix on how to flash the 3 boards (essentially all given on sparkboard website)}
 
@@ -415,8 +539,6 @@ Timer2 is configured in counter mode, incrementing on each \texttt{SPIM END} eve
 When its count reaches a threshold of 819 transactions (80\,\% of
 \texttt{DMA\_BUF\_SAMPLES} $= 1024$), its \texttt{COMPARE0} interrupt fires,
 triggering \texttt{timer2\_count\_handler}.
-
-\textcolor{red}{what did aligned change?}
 
 \subsubsection{Double-Buffering and Ring Buffer}
 
@@ -699,7 +821,60 @@ is cleared, and Timer1 \texttt{CC[0]} is restored from
 
 \subsection{Power Measurements}
 
-\textcolor{red}{TODO}
+Power consumption was measured using the Nordic Power Profiler Kit~II
+(PPK2)~\cite{ppk2} in ammeter mode, supplied by a regulated DC bench supply at a
+defined constant voltage. The PPK2 inserts a precision shunt in series with the
+supply rail, measures the resulting voltage drop, and reports instantaneous current
+at up to 100\,kSPS; a sampling rate of 10\,kSPS was used to allow faster data
+saving without loss of relevant information. Average and peak current values are
+read directly from the nRF Connect for Desktop
+application~\cite{nrf_connect_desktop}\footnote{\url{https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop}},
+which also records the full current-vs-time trace. Power is obtained by multiplying
+the measured current by the supply voltage.
+
+The device under test comprised the custom WLCSP49 nRF52832 peripheral module, the
+Intan RHS2116 chip on its carrier board, and the intermediate connector board. Each
+configuration was recorded for 10\,s; the mean current stabilised well within the
+first second in all cases, so the 10\,s window provides a reliable average. Peak
+current values were recorded alongside the mean and are used to assess instantaneous
+load on the wireless power transfer system.
+
+All measurements were repeated at two supply voltages: 3.0\,V (representative
+bench supply) and 3.6\,V (the output voltage delivered by the wireless power
+transfer system in the current implementation; a slightly higher-than-nominal
+voltage is used to provide headroom for the resistive losses expected in thin-film
+interconnects). Table~\ref{tab:power_configs} lists all operating configurations measured.
+
+\begin{table}[h]
+\centering
+\caption{Operating configurations measured for power characterisation
+($\bullet$ = measured). $n_\text{ch}$: active recording channels;
+$f_\text{ch}$: per-channel sampling rate.}
+\label{tab:power_configs}
+\small
+\begin{tabular}{c|cccccccc}
+\toprule
+\multirow{2}{*}{$n_\text{ch}$} & \multicolumn{8}{c}{$f_\text{ch}$ (kHz per channel)} \\
+ & 1 & 2 & 2.667 & 3.2 & 4 & 8 & 16 & 32 \\
+\midrule
+16 & $\bullet$ & $\bullet$ &           &           &           &           &           &           \\
+12 & $\bullet$ & $\bullet$ & $\bullet$ &           &           &           &           &           \\
+10 & $\bullet$ & $\bullet$ &           & $\bullet$ &           &           &           &           \\
+ 8 & $\bullet$ & $\bullet$ &           &           & $\bullet$ &           &           &           \\
+ 4 & $\bullet$ & $\bullet$ &           &           & $\bullet$ & $\bullet$ &           &           \\
+ 3 & $\bullet$ & $\bullet$ &           &           & $\bullet$ & $\bullet$ &           &           \\
+ 2 & $\bullet$ & $\bullet$ &           &           & $\bullet$ & $\bullet$ &           &           \\
+ 1 & $\bullet$ & $\bullet$ &           &           & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent The 16-channel, 2\,kHz/channel configuration was measured separately as
+part of a dedicated sweep over channel count (1--16 channels all at 2\,kHz per
+channel) to characterise the trend with channel count; all measurements in that
+sweep used a consistent supply voltage to ensure comparability.
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Central Firmware}
@@ -763,6 +938,7 @@ via RTT over the J-Link USB interface.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{GUI and Host Software}
+\label{sec:gui}
 
 The Python-based GUI communicates with the central DK via RTT over the J-Link
 USB interface using the \texttt{pylink-square} library. It runs two concurrent
@@ -817,15 +993,26 @@ prevent amplifier saturation from the stimulation artefact; the peripheral
 resumes recording automatically once stimulation ends.
 
 \paragraph{Channel resynchronisation.}
-Occasional channel desynchronisation was observed, particularly in electrically
-noisy environments (long SPI cables, proximity to the wireless power transfer
-coil). The confirmed cause is CS line noise: a spurious CS pulse causes the
-Intan RHS2116 to advance its internal channel counter by one extra step, after
-which all subsequent channel assignments are permanently offset. A
-\texttt{Resync Channels} button recovers correct alignment by triggering a
-brief zero-amplitude stimulation sequence, which empirically resets the Intan's
-channel cycling state. This issue is expected to be eliminated when the Intan
-and nRF52832 are collocated on the same PCB with short, shielded SPI traces.
+Under normal operating conditions with a stable power supply, no channel
+desynchronisation was observed during continuous operation. Occasional
+desynchronisation occurred only when the supply voltage was near the minimum
+threshold required to power on the system. The confirmed cause is CS line noise:
+a spurious CS pulse causes the Intan RHS2116 to advance its internal channel
+counter by one extra step, after which all subsequent channel assignments are
+permanently offset by a constant amount (the offset is identical across all
+channels). A \texttt{Resync Channels} button recovers correct alignment by
+triggering a brief zero-amplitude stimulation sequence, which empirically resets
+the Intan's channel cycling state.
+
+Importantly, a supply voltage low enough to produce spurious CS pulses will also
+corrupt the SPI data lines; even substituting \texttt{CONVERT($k$)} direct-address
+commands would not yield reliable samples under such conditions. Channel
+desynchronisation is therefore a symptom of operation outside the specified supply
+range rather than a firmware defect. Should channel drift be suspected, shorting
+one recording channel to GND provides a fixed-amplitude reference that makes any
+constant channel offset immediately visible, since all channels shift by the same
+amount. This issue is expected to be eliminated when the Intan and nRF52832 are
+collocated on the same PCB with short, shielded SPI traces.
 
 Pre-built executables for Windows, macOS, and Linux are available as release
 artefacts on the project repository

@@ -1,8 +1,93 @@
 \section{Discussion}
 
-\noindent This section provides a concise interpretation of the results in relation to the study objectives. Emphasis is placed on what the findings suggest, how robust they appear under the chosen validation strategy, and how they fit within a broader life sciences context.
+\subsection{Electromagnetic Interference in the WPT Field}
 
-\noindent Replace this placeholder with project\,specific discussion points: main takeaways, practical implications, limitations (data, methods, assumptions), and prioritized future directions. Clearly distinguish evidence\,based claims from speculation, and note any dependencies that may affect generalizability.
+At 30\,cm from the transmitter coil, the recorded noise on a GND-shorted channel
+is typically within $\pm10$\,\textmu{}V (20\,\textmu{}V$_\text{pp}$), only
+marginally above the amplifier's intrinsic noise floor of
+$\approx15.8$\,\textmu{}V$_\text{pp}$. At this distance the WPT field contributes
+minimally and the system would likely support useful neural recordings. However,
+interference grows rapidly with proximity, and inside the coil the amplifier input
+saturates entirely. The direct on-chip measurement --- shorting a channel with no
+carrier board wiring --- reduced the interference to $\pm20$--$30$\,\textmu{}V
+even inside the coil, a three- to four-fold improvement. This confirms that the
+carrier board wiring, rather than the WPT field acting directly on the silicon, is
+the dominant pickup path: long external wires form inductive loops and act as
+antennas in the alternating magnetic field.
 
-\subsection{Discussion Subsection}
-\lipsum[2]
+The implication is that the interference problem is primarily a packaging problem,
+not an intrinsic incompatibility between BLE-based neural recording and WPT.
+A co-integrated PCB with short, shielded traces connecting the nRF52832 and Intan
+RHS2116 would dramatically reduce pickup loop area and antenna length. The
+prototype flex PCB (Figure~\ref{fig:miniaturization}d) represents exactly this
+direction; its oscillator circuit was non-functional in the current revision, but
+the hardware fault is unrelated to the interference mechanism and does not
+undermine this conclusion.
+
+\subsection{Power Consumption and Architectural Improvements}
+
+The present system achieves a 31\,\% reduction in nRF52832 module power compared
+to the prior single-channel CPU-polling implementation~\cite{prior_impl}, while
+simultaneously increasing the channel count 16-fold. Two architectural changes
+account for this. First, replacing the CPU polling loop with a PPI/EasyDMA
+acquisition pipeline allows the processor to remain in low-power sleep between
+BLE connection events rather than spinning continuously; the power timecourse data
+confirm this, showing a low baseline current punctuated only by the periodic
+connection event peaks. Second, removal of the UART peripheral --- which was used
+in the prior implementation to forward data to the computer --- eliminates a
+further source of continuous power draw.
+
+\subsection{Ring Buffer Architecture}
+\label{sec:discussion_ringbuffer}
+
+The periodic power spikes visible in the timecourse data arise from CPU activity
+at each DMA buffer swap: copying 819 samples from the inactive DMA buffer into the
+ring buffer and assembling BLE packets. An alternative architecture could send data
+directly from the inactive DMA buffer, potentially reducing these spikes. However,
+this carries two costs. First, the ring buffer stores only the selected channels at
+2\,bytes per sample, whereas the DMA buffers hold all 16 channels at 4\,bytes
+each; in a 2-channel recording the ring buffer is 16$\times$ more memory-efficient
+per acquisition cycle, allowing proportionally more data to be buffered in the
+available RAM. Second, removing the ring buffer reintroduces a synchronisation
+problem between the SPI EasyDMA write path and the BLE read path, requiring
+careful atomic coordination that the current double-buffer architecture cleanly
+avoids. This optimisation is left for future work if power becomes the primary
+constraint.
+
+\subsection{BLE Throughput}
+
+BLE throughput of up to approximately 540\,kbps with real SPI data from the Intan
+RHS2116 confirms that the hardware-driven pipeline successfully removes the CPU
+bottleneck that limited the prior implementation. In the prior work, 600\,kbps was
+reported, but this figure was achieved with synthetic data only; with real SPI
+acquisition running concurrently, the CPU had insufficient time between SPI
+transactions to sustain reliable BLE transmission, limiting the system to a single
+channel at 2\,kHz. The present architecture decouples acquisition from the CPU
+almost entirely, sustaining the required throughput across all tested channel and
+sampling rate configurations with no packet loss.
+
+\subsection{Limitations}
+
+The carrier board used throughout this work is not representative of a final
+implantable form factor. All measurements of interference and power consumption
+reflect a bench-top assembly with long external wires, which as discussed above
+is the dominant source of WPT-induced noise. Power measurements were made at room
+temperature; thermal effects under implanted conditions have not been characterised.
+The prototype flex PCB co-integrating the nRF52832 and Intan RHS2116 was
+non-functional in its current revision, and neural recording with the most compact
+hardware configuration could not be demonstrated. All signal recording was
+validated using a function generator input rather than real neural signals from
+electrodes.
+
+\subsection{Future Directions}
+
+The immediate next step is PCB co-integration of the nRF52832 and Intan RHS2116
+on a single substrate with short, shielded SPI traces, eliminating the carrier
+board wiring that currently dominates WPT interference. Beyond this, the PCB
+should be realised as a microfabricated device on a thin-film substrate compatible
+with implantable electrode arrays, combining the recording and stimulation
+electronics with the electrode interface in a compact, biocompatible form factor.
+Validation should then proceed first in vitro --- confirming signal integrity and
+noise performance in a controlled environment without biological variability ---
+before advancing to in vivo implantation studies to assess chronic performance
+and tissue compatibility.

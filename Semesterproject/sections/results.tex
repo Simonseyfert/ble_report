@@ -6,9 +6,10 @@ charge-balanced biphasic electrical stimulation, and bidirectional BLE command a
 transfer. Key quantitative results are summarised here; detailed measurements and figures
 are presented in the subsections that follow.
 
-BLE throughput with real SPI data from the Intan RHS2116 reached \TODO{X}\,kbps in the
-default 16-channel configuration at 2\,kHz per channel, confirming that the hardware-driven
-pipeline sustains the required data rate under continuous operation
+BLE throughput with real SPI data from the Intan RHS2116 reached up to
+approximately 540\,kbps in the default 16-channel configuration at 2\,kHz per channel,
+confirming that the hardware-driven pipeline sustains the required data rate under
+continuous operation
 (Section~\ref{sec:results_ble}). The stimulation pipeline was validated by oscilloscope
 measurement of the biphasic waveform at the Intan RHS2116 output, confirming correct pulse
 shape, timing, and charge balance across a range of configured parameters
@@ -25,15 +26,52 @@ work achieves a 31\,\% reduction in module power while simultaneously increasing
 channel count 16-fold. Two architectural improvements account for this: the PPI/DMA
 acquisition pipeline allows the CPU to remain in low-power sleep between BLE events
 rather than spinning in a polling loop, and removal of the UART peripheral eliminates
-a further source of continuous power draw. Combined power consumption of the nRF52832
-and Intan RHS2116 was measured at 61.3\,mW at 3.6\,V in the same 16-channel,
-2\,kHz per channel configuration. Power measurements are presented in
-Section~\ref{sec:results_power}.
+a further source of continuous power draw. Combined power consumption of the nRF52832 and Intan RHS2116 was measured at
+61.3\,mW at 3.6\,V and 48.6\,mW at 3.0\,V in the same 16-channel, 2\,kHz per
+channel configuration. Full power measurements across all channel and sampling
+rate configurations at both supply voltages are presented in
+Section~\ref{sec:results_power} and Appendix~\ref{app:power_data}.
 
 \subsection{Neural Signal Recording}
 \label{sec:results_recording}
 
-\TODO{}
+The end-to-end recording pipeline was validated by injecting a 300\,Hz, 1\,mV
+sinusoidal signal from a Keysight 33500B Waveform
+Generator~\cite{keysight33500b} into the Intan RHS2116
+input via the carrier board connector. This frequency corresponds to the upper
+limit of the LFP band targeted by the system~\cite{reimann2013biophysically}
+and was chosen specifically to demonstrate faithful reconstruction of the
+highest-frequency LFP components of interest. The 1\,mV amplitude is well
+within the
+$\pm5$\,mV input range of the amplifier. Two configurations were tested:
+16 channels at 2\,kHz per channel (the default operating point) and 8 channels
+at 4\,kHz per channel (higher temporal resolution at reduced channel count).
+
+Figures~\ref{fig:rec_16ch} and~\ref{fig:rec_8ch} show representative recorded
+traces for both configurations. In both cases the 300\,Hz waveform is faithfully
+reconstructed with correct frequency and amplitude, and no dropped samples are
+visible in either trace. As expected, the 4\,kHz configuration produces a
+slightly smoother reconstruction of the sinusoidal waveform due to the higher
+number of samples per period (13.3 samples/period at 4\,kHz vs.\ 6.7 at 2\,kHz).
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/300Hz_input_16ch_2kHz.png}
+    \caption{Recorded 300\,Hz, 1\,mV sinusoidal signal in 16-channel mode at
+    2\,kHz per channel. The waveform is faithfully reconstructed across all
+    connected channels with correct frequency and amplitude.}
+    \label{fig:rec_16ch}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/300Hz_input_8_ch_4kHz.png}
+    \caption{Recorded 300\,Hz, 1\,mV sinusoidal signal in 8-channel mode at
+    4\,kHz per channel. The higher sampling rate yields a slightly smoother
+    reconstruction compared to Figure~\ref{fig:rec_16ch} (13.3 vs.\ 6.7
+    samples per period).}
+    \label{fig:rec_8ch}
+\end{figure}
 
 \subsection{BLE Throughput and Packet Loss}
 \label{sec:results_ble}
@@ -48,10 +86,12 @@ Section~\ref{sec:results_power}.
 \subsection{Power Consumption}
 \label{sec:results_power}
 
-All combined (nRF52832\,+\,Intan RHS2116) measurements were taken at a supply
-voltage of 3.6\,V, as provided by the wireless power transfer system.
-nRF52832-only measurements used the actual measured bench supply of 3.020\,V
-(equivalent values at 3.3\,V in parentheses).
+Combined (nRF52832\,+\,Intan RHS2116) power consumption was measured at both
+3.0\,V and 3.6\,V supply; 3.6\,V corresponds to the output voltage of the
+wireless power transfer system, while 3.0\,V serves as a lower-voltage
+reference. Full measurement tables for both voltages are provided in
+Appendix~\ref{app:power_data}. The nRF52832-only reference value was measured
+at the actual bench supply of 3.020\,V (equivalent to 20.4\,mW at 3.3\,V).
 
 \subsubsection*{Power vs.\ channel count at fixed 2\,kHz per channel}
 
@@ -147,26 +187,132 @@ a single connection event described in Appendix~\ref{app:softdevice_timing}.
 
 The large periodic spikes arise from the CPU work at each DMA buffer swap: copying
 819 sample-entries from the inactive DMA buffer into the ring buffer and preparing
-BLE packets. An alternative architecture could send data directly from the inactive
-DMA buffer without an intermediate ring buffer, potentially eliminating these
-spikes. However, this trade-off has two costs. First, the ring buffer stores only the selected channels at 2\,bytes per sample, while
-the DMA buffers hold all 16 channels at 4\,bytes each. Even in the 16-channel
-case the ring buffer is 2$\times$ more memory-efficient per sample (2 vs.\ 4\,bytes);
-in a 2-channel recording --- the worst case --- it is 16$\times$ more efficient
-(2\,channels $\times$ 2\,bytes $=$ 4\,bytes per cycle vs.\
-16\,channels $\times$ 4\,bytes $=$ 64\,bytes), allowing a proportionally longer
-recording to be buffered in the same memory. The overall system holds both the DMA
-buffers and the ring buffer simultaneously, so the system-level gain is smaller
-than these per-buffer ratios suggest. Second, removing the ring buffer
-reintroduces a synchronisation problem between the SPI EasyDMA write path and the
-BLE read path, requiring careful atomic coordination that the current architecture
-cleanly avoids. This optimisation is therefore left for future work if power
-becomes the primary design constraint.
+BLE packets (see Section~\ref{sec:discussion_ringbuffer} for a discussion of
+alternative architectures).
+
+\subsubsection*{Effect of supply voltage: 3.0\,V vs 3.6\,V}
+
+Power consumption at 3.0\,V is uniformly lower than at 3.6\,V across all
+configurations, with a measured ratio $P(3.0\,\text{V})\,/\,P(3.6\,\text{V})
+= 0.765 \pm 0.006$ (mean\,$\pm$\,std). The spread is below $1\,\%$,
+confirming that the scaling is essentially configuration-independent.
+The ratio falls between the predictions of a purely LDO-dominated model
+($R = 0.833$, $P \propto V$) and a purely dynamic-switching-dominated model
+($R = 0.694$, $P \propto V^2$), consistent with an effective power-law exponent
+$\alpha \approx 1.47$. The full derivation and comparison figure are provided
+in Appendix~\ref{app:power_voltage}.
+
+\subsubsection*{Measurement repeatability}
+
+The 3.6\,V measurements were repeated in a second independent session
+(Table~\ref{tab:power_repeat} in Appendix~\ref{app:power_data}).
+At 2\,kHz per channel the two runs agreed to within 3.8\,\% on average
+(std 1.0\,\%) across all channel counts; at maximum per-channel rate
+the agreement was 5.9\,\% (std 3.2\,\%). Both runs reproduce the same trends:
+approximately linear growth with channel count at 2\,kHz per channel, and the
+BLE-limited plateau with the characteristic power dip for 2--3 channels at
+maximum rate. The residual spread is consistent with a small difference in
+effective supply voltage between sessions: as the voltage scaling analysis in
+Appendix~\ref{app:power_voltage} shows, even a modest supply offset produces a
+proportional change in absolute power across the board, while leaving trends
+unaffected. Comparison
+plots for the two runs are provided in Appendix~\ref{app:power_repeat}.
 
 \subsection{Electromagnetic Interference in the WPT Field}
 \label{sec:results_noise}
 
-\TODO{}
+\subsubsection*{Basic wireless power operation}
+
+With the peripheral powered via the WPT system and the Intan RHS2116 located
+outside the transmitter coil field, the 300\,Hz sinusoidal test signal was
+successfully acquired and transmitted over BLE, confirming end-to-end operation
+under wireless power.
+
+\subsubsection*{Interference with carrier board in the WPT field}
+
+When the Intan RHS2116 on its carrier board was placed inside the transmitter coil
+field, the 300\,Hz sinusoidal input was no longer recoverable. The most likely
+mechanism is that the long external wires connecting the function generator to the
+carrier board act as antennas and form inductive pickup loops in the alternating
+magnetic field of the WPT transmitter.
+
+To characterise the interference quantitatively without the confound of the input
+signal, channel~7 was shorted to GND on the carrier board (nearest recording channel
+to the GND supply pin; see Figure~\ref{fig:connector_pinout}). The results at three
+distances are shown in Figures~\ref{fig:shorted_30cm}, \ref{fig:shorted_4cm},
+and~\ref{fig:shorted_inside}.
+
+At 30\,cm from the coil edge the interference is modest: peak-to-peak excursions
+are mostly within $\pm10$\,\textmu{}V (20\,\textmu{}V$_\text{pp}$), with occasional
+peaks reaching $\pm15$\,\textmu{}V (30\,\textmu{}V$_\text{pp}$). This is
+approximately twice the amplifier's intrinsic noise floor of
+$\approx15.8$\,\textmu{}V$_\text{pp}$ (Section~\ref{sec:hardware_intan}), indicating
+that environmental sources already contribute measurably at this distance; even a
+smartphone in the vicinity was observed to introduce additional interference.
+At 4\,cm the interference increases substantially, with excursions reaching
+$+50$ to $+60$\,\textmu{}V and down to $-90$\,\textmu{}V. Inside the coil the
+signal saturates the amplifier input entirely, spanning from $-6000$ to
+$+4000$\,\textmu{}V --- well beyond the $\pm5$\,mV input range of the RHS2116.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.55\textwidth]{figures/shorted_30cm_distance.png}
+    \caption{GND-shorted channel~7 at 30\,cm from the WPT transmitter coil.
+    Peak-to-peak excursions are mostly within $\pm10$\,\textmu{}V, with occasional
+    peaks at $\pm15$\,\textmu{}V ($\approx$2$\times$ the amplifier noise floor).}
+    \label{fig:shorted_30cm}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.55\textwidth]{figures/shorted_4cm_distance.png}
+    \caption{GND-shorted channel~7 at 4\,cm from the WPT transmitter coil.
+    Interference reaches $+50$ to $+60$\,\textmu{}V and occasionally
+    $-90$\,\textmu{}V.}
+    \label{fig:shorted_4cm}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.55\textwidth]{figures/shorted_inside.png}
+    \caption{GND-shorted channel~7 with the carrier board inside the WPT
+    transmitter coil. The amplifier input is fully saturated, spanning $-6000$
+    to $+4000$\,\textmu{}V.}
+    \label{fig:shorted_inside}
+\end{figure}
+
+\subsubsection*{Direct on-chip measurement}
+
+Shorting channel~0 directly on the Intan RHS2116 die, bypassing the carrier board
+and its wiring, reduced the interference to $\pm20$--$30$\,\textmu{}V
+(Figure~\ref{fig:shorted_on_intan}). This three-to-four-fold reduction confirms
+that the carrier board wiring --- rather than the chip itself or the WPT field
+acting directly on the silicon --- is the dominant pickup path. The residual
+$\pm20$--$30$\,\textmu{}V reflects hand-soldered connections still forming small
+pickup loops; microfabricated traces on a co-integrated PCB would reduce these
+further.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.55\textwidth]{figures/shorted_on_intan.png}
+    \caption{Channel~0 shorted directly on the Intan RHS2116 die, without the
+    carrier board, inside the WPT field. Interference is reduced to
+    $\pm20$--$30$\,\textmu{}V, confirming that carrier board wiring is the
+    dominant pickup mechanism.}
+    \label{fig:shorted_on_intan}
+\end{figure}
+
+\subsubsection*{Flex PCB}
+
+The prototype flex PCB co-integrating the nRF52832 and Intan RHS2116
+(Figure~\ref{fig:miniaturization}d) was intended to provide a defined test signal
+inside the WPT field via its on-board square-wave oscillator, avoiding all external
+signal wiring. However, the oscillator did not produce output even outside the WPT
+field, indicating a hardware fault unrelated to interference. Wireless power
+transfer characterisation with this module could therefore not be performed.
+The result nonetheless illustrates the motivation for the co-integrated form
+factor: eliminating external wiring is the key step toward making the system
+compatible with the WPT field.
 
 
 \begin{comment}

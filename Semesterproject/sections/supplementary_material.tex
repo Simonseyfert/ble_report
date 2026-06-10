@@ -1,4 +1,5 @@
 \appendix
+\pagenumbering{roman}
 \section{Appendix}
 
 \subsection{SoftDevice Preemption Timing Derivation}
@@ -103,13 +104,9 @@ configured range 7.5--10\,ms).
 \subsection*{Meaning of $t_{n\text{ISR}(0)}$}
 
 $t_{n\text{ISR}(0)}$ is the minimum time between two consecutive priority-0 ISR
-firings \emph{within} a single connection event (e.g., between two consecutive
-\texttt{RadioProcessing} interrupts when multiple packets are sent). The minimum
-of 183\,\textmu{}s means application code and hardware-interrupt handlers (such as
-\texttt{timer2\_count\_handler}) are guaranteed at least 183\,\textmu{}s of
-uninterrupted execution between consecutive radio events. Since the DMA buffer swap
-in the critical section takes approximately 250\,ns, it completes well within this
-window even in the worst case.
+firings within a single connection event. At a minimum of 183\,\textmu{}s, this
+is far larger than the DMA buffer swap operation ($\approx$250\,ns), so the swap
+is guaranteed to complete before the next SoftDevice interrupt fires.
 
 \subsection*{Worst-case preemption}
 
@@ -133,26 +130,407 @@ At the default configuration (16 channels, 2\,kHz per channel, 32\,kHz SPI), the
 window expands to $205 \times 31.25~\mu\text{s} \approx 6.4\,\text{ms}$.
 
 
+\subsection{Power Measurement Data}
+\label{app:power_data}
+
+Tables~\ref{tab:power_3v6_3v} and~\ref{tab:power_repeat} list all measured
+power consumption values for the combined nRF52832\,+\,Intan RHS2116 system
+at 3.6\,V and 3.0\,V supply. In multi-channel mode the total SPI transaction
+rate is $f_\text{SPI} = 16 \times f/\text{ch}$; in single-channel mode
+($n=1$), $f_\text{SPI} = f/\text{ch}$ directly. The \textit{Limit} column
+indicates whether the configuration hits the BLE throughput ceiling
+(32\,kSa/s), the SPI rate ceiling (128\,kHz), or neither at the stated
+operating point.
+
+\begin{table}[htbp]
+\centering
+\caption{Power consumption at 3.6\,V and 3.0\,V for all measured configurations.
+$n$\,=\,active channels; $f$/ch\,=\,per-channel sampling rate;
+$f_\text{BLE} = n \times f/\text{ch}$ = total BLE throughput.}
+\label{tab:power_3v6_3v}
+\footnotesize
+\begin{tabular}{@{}rrlrrrl@{}}
+\toprule
+$n$ & $f$/ch (kHz) & $f_\text{BLE}$ (kSa/s)
+    & $P_{3.6\,\text{V}}$ (mW) & $P_{3.0\,\text{V}}$ (mW) & Limit \\
+\midrule
+1 &  1    &  1 & 43.992 & 33.48 & ---     \\
+1 &  2    &  2 & 44.892 & 34.23 & ---     \\
+1 &  4    &  4 & 46.620 & 35.58 & ---     \\
+1 &  8    &  8 & 49.608 & 37.95 & ---     \\
+1 & 16    & 16 & 57.024 & 44.01 & ---     \\
+1 & 32    & 32 & 70.956 & 55.20 & BLE     \\
+\addlinespace
+2 &  1    &  2 & 46.152 & 34.98 & ---     \\
+2 &  2    &  4 & 49.284 & 37.32 & ---     \\
+2 &  4    &  8 & 55.800 & 42.36 & ---     \\
+2 &  8    & 16 & 67.716 & 51.36 & SPI     \\
+\addlinespace
+3 &  1    &  3 & 46.944 & 35.40 & ---     \\
+3 &  2    &  6 & 50.472 & 38.22 & ---     \\
+3 &  4    & 12 & 57.708 & 43.80 & ---     \\
+3 &  8    & 24 & 71.136 & 54.33 & SPI     \\
+\addlinespace
+4 &  1    &  4 & 46.980 & 35.73 & ---     \\
+4 &  2    &  8 & 51.156 & 39.00 & ---     \\
+4 &  4    & 16 & 59.508 & 45.39 & ---     \\
+4 &  8    & 32 & 74.772 & 57.30 & BLE+SPI \\
+\addlinespace
+8 &  1    &  8 & 48.924 & 37.38 & ---     \\
+8 &  2    & 16 & 55.044 & 42.24 & ---     \\
+8 &  4    & 32 & 67.104 & 51.96 & BLE     \\
+\addlinespace
+10 &  1   & 10 & 50.220 & 38.31 & ---     \\
+10 &  2   & 20 & 57.276 & 43.83 & ---     \\
+10 &  3.2 & 32 & 65.952 & 50.85 & BLE     \\
+\addlinespace
+12 &  1      & 12 & 51.516 & 39.15 & ---  \\
+12 &  2      & 24 & 59.220 & 45.54 & ---  \\
+12 &  2.667  & 32 & 64.368 & 50.13 & BLE  \\
+\addlinespace
+16 &  1   & 16 & 53.028 & 40.74 & ---     \\
+16 &  2   & 32 & 62.928 & 48.63 & BLE     \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Repeated 3.6\,V measurements covering all channel counts 1--16.
+For each $n \ge 2$: one entry at 2\,kHz/ch and one at the maximum achievable
+rate. For $n=1$: five rates (2, 4, 8, 16, 32\,kHz/ch). For $n=16$ the maximum
+rate equals 2\,kHz/ch and only one row appears.
+Values may differ slightly from Table~\ref{tab:power_3v6_3v} due to
+measurement-to-measurement variability.}
+\label{tab:power_repeat}
+\footnotesize
+\begin{tabular}{@{}rrlrl@{}}
+\toprule
+$n$ & $f$/ch (kHz) & $f_\text{BLE}$ (kSa/s) & $P_{3.6\,\text{V}}$ (mW) & Limit \\
+\midrule
+ 1 &  2      &  2 & 43.668 & ---     \\
+ 1 &  4      &  4 & 45.612 & ---     \\
+ 1 &  8      &  8 & 48.348 & ---     \\
+ 1 & 16      & 16 & 55.368 & ---     \\
+ 1 & 32      & 32 & 68.400 & BLE     \\
+\addlinespace
+ 2 &  2      &  4 & 46.980 & ---     \\
+ 2 &  8      & 16 & 60.588 & SPI     \\
+\addlinespace
+ 3 &  2      &  6 & 47.772 & ---     \\
+ 3 &  8      & 24 & 64.188 & SPI     \\
+\addlinespace
+ 4 &  2      &  8 & 48.708 & ---     \\
+ 4 &  8      & 32 & 68.220 & BLE+SPI \\
+\addlinespace
+ 5 &  2      & 10 & 49.644 & ---     \\
+ 5 &  6.4    & 32 & 66.492 & BLE     \\
+\addlinespace
+ 6 &  2      & 12 & 50.580 & ---     \\
+ 6 &  5.333  & 32 & 64.944 & BLE     \\
+\addlinespace
+ 7 &  2      & 14 & 51.732 & ---     \\
+ 7 &  4.571  & 32 & 63.756 & BLE     \\
+\addlinespace
+ 8 &  2      & 16 & 53.244 & ---     \\
+ 8 &  4      & 32 & 64.152 & BLE     \\
+\addlinespace
+ 9 &  2      & 18 & 53.748 & ---     \\
+ 9 &  3.556  & 32 & 62.352 & BLE     \\
+\addlinespace
+10 &  2      & 20 & 55.116 & ---     \\
+10 &  3.2    & 32 & 63.036 & BLE     \\
+\addlinespace
+11 &  2      & 22 & 55.440 & ---     \\
+11 &  2.909  & 32 & 61.596 & BLE     \\
+\addlinespace
+12 &  2      & 24 & 57.132 & ---     \\
+12 &  2.667  & 32 & 62.388 & BLE     \\
+\addlinespace
+13 &  2      & 26 & 57.564 & ---     \\
+13 &  2.462  & 32 & 61.092 & BLE     \\
+\addlinespace
+14 &  2      & 28 & 58.500 & ---     \\
+14 &  2.286  & 32 & 60.552 & BLE     \\
+\addlinespace
+15 &  2      & 30 & 59.472 & ---     \\
+15 &  2.133  & 32 & 61.200 & BLE     \\
+\addlinespace
+16 &  2      & 32 & 61.308 & BLE     \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Measurement Repeatability Plots}
+\label{app:power_repeat}
+
+Figures~\ref{fig:power_repeat_2kHz} and~\ref{fig:power_repeat_maxrate} compare
+the two independent 3.6\,V measurement sessions side by side (Run~1 from
+Table~\ref{tab:power_3v6_3v}, Run~2 from Table~\ref{tab:power_repeat}). The
+right axis shows the per-configuration percentage reduction from Run~1 to Run~2.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{figures/power_consumption_two_runs_2kHz.png}
+    \caption{Repeated 3.6\,V power measurements at 2\,kHz per channel as a function
+    of total BLE throughput. Both runs show the same approximately linear trend;
+    Run~2 is consistently 3.8\,\% lower on average (std 1.0\,\%), consistent with
+    a small difference in effective supply voltage between sessions.}
+    \label{fig:power_repeat_2kHz}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{figures/power_consumption_two_runs_max_rate.png}
+    \caption{Repeated 3.6\,V power measurements at the maximum achievable per-channel
+    rate as a function of channel count. Both runs reproduce the same structure:
+    BLE-limited plateau for 4--16 channels and a power dip at 2--3 channels due
+    to lower BLE throughput. Run~2 is 5.9\,\% lower on average (std 3.2\,\%).}
+    \label{fig:power_repeat_maxrate}
+\end{figure}
+
+\subsection{Supply Voltage Scaling Analysis}
+\label{app:power_voltage}
+
+To quantify the voltage dependence of power consumption, all configurations were
+measured at both 3.0\,V and 3.6\,V. Two limiting theoretical models predict
+different scaling laws for the ratio $R = P(3.0\,\text{V})\,/\,P(3.6\,\text{V})$:
+
+\begin{itemize}
+    \item \textbf{LDO-dominated} ($P \propto V$): excess supply voltage is
+    dissipated as heat in a linear regulator, giving
+    \begin{equation}
+        R_{\text{LDO}} = \frac{3.0}{3.6} \approx 0.833
+    \end{equation}
+    \item \textbf{Dynamic switching-dominated} ($P \propto V^2$, from
+    $P_{\text{dyn}} = CV^2f$): CMOS switching losses scale with the square of the
+    supply voltage, giving
+    \begin{equation}
+        R_{\text{CV}^2\!f} = \left(\frac{3.0}{3.6}\right)^{\!2} \approx 0.694
+    \end{equation}
+\end{itemize}
+
+The measured ratio across all operating configurations
+(Figure~\ref{fig:power_voltage}) has mean $0.765 \pm 0.006$ (std), falling
+between the two theoretical references and almost exactly at their midpoint
+($0.764$). The low standard deviation ($<1\,\%$) confirms that the voltage
+scaling is essentially configuration-independent. An effective exponent $\alpha$
+defined by $(3.0/3.6)^\alpha = 0.765$ can be computed as:
+\begin{equation}
+    \alpha = \frac{\ln(0.765)}{\ln(3.0/3.6)}
+           = \frac{-0.268}{-0.182} \approx 1.47
+\end{equation}
+This intermediate value ($1 < \alpha < 2$) suggests approximately equal
+contributions from linear (LDO-type) dissipation and quadratic (CMOS switching)
+losses.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/3V_vs_3_6V.png}
+    \caption{Power consumption at 3.6\,V vs 3.0\,V across all measured operating
+    configurations. \textit{Top:} absolute power at both voltages vs total BLE
+    throughput; grey lines connect matched operating points.
+    \textit{Bottom:} measured power ratio $P(3.0\,\text{V})\,/\,P(3.6\,\text{V})$
+    per configuration, with dashed reference lines for the LDO model ($P \propto V$,
+    ratio $= 0.833$) and CV$^2\!f$ model ($P \propto V^2$, ratio $= 0.694$).
+    The measured mean ratio of $0.765 \pm 0.006$ lies between the two references,
+    consistent with an effective scaling exponent of $\alpha \approx 1.47$.}
+    \label{fig:power_voltage}
+\end{figure}
+
 \subsection{Practical Tips}
-\TODO{}
+
+This section collects practical setup and troubleshooting information
+for working with the system, aimed at future users continuing development.
 
 \subsubsection{Software Requirements: Running the System}
 \label{app:software_run}
-\TODO{}
+
+To run the GUI without modifying firmware, the only prerequisite is the
+\textbf{J-Link Software and Documentation Pack} (V8.18 or
+later),\footnote{\url{https://www.segger.com/downloads/jlink/}~--- select
+\textit{J-Link Software and Documentation Pack}, V8.18.}
+which provides the J-Link drivers required by the \texttt{pylink-square}
+library for RTT communication with the central DK.
+
+Pre-built executables for Windows, macOS, and Linux are available as
+release artefacts on the project
+repository\footnote{\url{https://github.com/Simonseyfert/ble_spi_intan}~---
+access upon request; see Section~\ref{sec:gui}.}
+and can be launched directly without a Python installation.
+To run from source, Python~3.10 or later is required; install dependencies
+with \texttt{pip install -r requirements.txt} and launch the main GUI script.
+
+\paragraph{Quick start.}
+\begin{enumerate}
+    \item Connect the central nRF52832 DK to the computer via USB and power it on.
+    \item Power on the peripheral module (connected to the Intan RHS2116).
+    \item Launch the GUI. Once the BLE connection is established LED2 on the
+          DK lights up.
+    \item Click \textbf{Start Recording}.
+\end{enumerate}
 
 \subsubsection{Software Requirements: Firmware Development}
 \label{app:software_dev}
+
+The following tools are required to build and flash the firmware.
+
+\begin{itemize}
+    \item \textbf{SEGGER Embedded Studio for ARM V5.62
+    (legacy).}\footnote{\url{https://www.segger.com/downloads/embedded-studio/}~---
+    scroll to \textit{Embedded Studio for ARM (legacy)} and select V5.62. A
+    free licence is available for Nordic Semiconductor devices.}
+
+    \item \textbf{nRF5 SDK 17.1.0.}\footnote{\url{https://www.nordicsemi.com/Products/Development-software/nRF5-SDK/Download}}
+    Download the full SDK archive and extract it. The SoftDevice bundled
+    with this SDK version is S132~v7.2.0, located at\\
+    \texttt{nRF5\_SDK\_17.1.0\_ddde560/components/softdevice/s132/hex/}.
+
+    \item \textbf{nRF Connect for Desktop}~\cite{nrf_connect_desktop},
+    used to interface with the Nordic Power Profiler Kit~II for power
+    consumption measurements (see Section~\ref{sec:power_measurements}).
+
+    \item \textbf{J-Link Software and Documentation Pack
+    V8.18.}\footnote{\url{https://www.segger.com/downloads/jlink/}}
+    Provides J-Link drivers, RTT~Viewer, and related utilities.
+\end{itemize}
+
+\paragraph{SDK path.}
+Place the two firmware project folders inside the SDK so that the paths are:
+\begin{lstlisting}[basicstyle=\ttfamily\small,breaklines=true,frame=none]
+nRF5_SDK_17.1.0_ddde560/examples/my_projects/
+    ble_app_uart - WORKING 1 channel/
+    ble_app_uart_c - WORKING 1 channel/
+\end{lstlisting}
+Placing projects elsewhere in the filesystem can cause SES to fail to
+resolve SDK include paths.
+
+\paragraph{Getting started.}
+The YouTube tutorial playlist by Eirik
+Haustveit\footnote{\url{https://youtube.com/playlist?list=PLiKJljyEUlZj4z8RqJKTaoMpSqjLdBGO4}}
+provides a practical introduction to BLE development with the nRF52832 and
+nRF5~SDK. It is a useful starting point for understanding the project
+structure and trying out first example codes before working with the project
+firmware.
+
+\subsubsection{Flashing the Firmware (Development Kit)}
+
+These steps apply when flashing to an nRF52832 Development Kit directly.
+For flashing to standalone non-DK modules (SparkFun breakout, custom
+WLCSP49), see Appendix~\ref{app:flash_ndk}.
+
+\paragraph{Peripheral (recording/stimulation side).}
+\begin{enumerate}
+    \item Open SEGGER Embedded Studio.
+    \item Open \texttt{ble\_app\_uart - WORKING 1 channel/pca10040/s132/ses/\\
+          ble\_app\_uart\_pca10040\_s132.emProject}.
+    \item Build: \textbf{Build} $\to$ \textbf{Build ble\_app\_uart\_pca10040\_s132}
+          (or press~\texttt{F7}).
+    \item Connect: \textbf{Target} $\to$ \textbf{Connect J-Link} --- select the
+          correct J-Link serial number (check the number printed on the
+          microcontroller to ensure you flash the right device when multiple
+          DKs are connected).
+    \item Erase: \textbf{Target} $\to$ \textbf{Erase All}.
+    \item Flash: \textbf{Target} $\to$ \textbf{Download ble\_app\_uart\_pca10040\_s132}
+          (or press~\texttt{Ctrl+T, L}).
+    \item If the Intan RHS2116 was previously in use, power-cycle it fully
+          after flashing to ensure it reinitialises cleanly.
+\end{enumerate}
+
+\paragraph{Central.}
+Open \texttt{ble\_app\_uart\_c - WORKING 1 channel/pca10040/s132/ses/\\
+ble\_app\_uart\_c\_pca10040\_s132.emProject} and repeat steps 3--6 above.
+
+\paragraph{RTT output.}
+To see RTT log output, open \textbf{J-Link RTT Viewer} (part of the J-Link
+Software Pack) separately before or after flashing. RTT messages are not
+visible in the nRF Connect for Desktop terminal.
+
+\subsubsection{Solved Errors}
+
 \TODO{}
 
 \subsubsection{Code Development}
-\TODO{}
 
-\subsubsection{Solved Errors}
-\TODO{}
+The following lessons were learned during the development of this project and are
+intended to help future developers avoid common pitfalls.
+
+\paragraph{On the use of AI assistants.}
+Do not expect to describe the desired functionality or overall architecture to a
+large language model and have working embedded firmware in return --- in practice,
+nothing will work. Embedded systems programming is fundamentally different from
+writing Python scripts: correctness depends on hardware timing, peripheral register
+sequences, interrupt priorities, and DMA alignment, none of which an AI can verify
+without running the code. That said, AI can still be useful: keeping the
+\texttt{main.c} files open in a tool such as Claude Code gives it access to the
+current firmware state and allows it to assist with targeted questions. Treat its
+output as a starting point to read critically, not as code to paste blindly --- the
+closer the change is to the hardware, the more likely it is to contain subtle
+errors. Always cross-check generated code against the relevant datasheet.
+
+\paragraph{Step-by-step hardware bring-up.}
+New hardware interactions should be developed incrementally, in the smallest
+testable steps possible. For example, before implementing the full PPI/DMA
+acquisition chain, first verify that the timer can toggle the CS line alone. Add
+one PPI channel at a time, confirm each step with the oscilloscope before
+proceeding, and only combine components once each is individually validated.
+Attempting to implement the full architecture in one step --- especially anything
+involving new PPI channels or switching between CPU and hardware control of
+peripherals such as the CS line --- will almost always fail and is very difficult
+to debug.
+
+\paragraph{Use the oscilloscope.}
+Hardware signals should be verified directly with an oscilloscope, not inferred
+from software behaviour. Checking the CS line, SCLK, and MISO/MOSI waveforms
+at each bring-up step catches problems that would otherwise produce silent failures
+or misleading data.
+
+\paragraph{Example.}
+When transitioning the CS line from CPU-driven control (via the standard SPI
+library) to hardware-driven control via GPIOTE and PPI, the new code appeared to
+work correctly on the first test. What was not immediately obvious was why: because
+the nRF52832 DK is power-cycled during flashing but VDD on the pin headers remains
+active (supplied by the DK's USB regulator), the Intan RHS2116 had never lost
+power and still held its register configuration from the previous session. The new
+code, which no longer called the Intan initialisation sequence, was simply
+inheriting the state left by the old code.
+
+The following morning, after the setup had been powered off overnight, the same
+code produced no output at all. Reverting to the old firmware --- which did include
+initialisation --- restored operation. Flashing the new code immediately afterward
+also worked, because the old firmware had just reinitialised the chip. This
+alternating pattern (old works, new fails, old works, new works) was a strong hint
+that initialisation was the culprit, but the situation only became fully clear when
+watching the CS line on the oscilloscope: after flashing the new peripheral
+firmware, the CS line remained continuously high until \textbf{Start Recording}
+was pressed --- confirming that the Intan was never being initialised on startup.
+The fix was to add the initialisation sequence back into the new code, called once
+at boot before the PPI chain is enabled.
+
+\paragraph{Test all features regularly.}
+Every time a change is made, verify that all existing functionality still works ---
+not just the feature under development. There can be non-obvious timing dependencies
+between components, and a change to one part of the firmware can silently break
+another. Ideally, run a full end-to-end test after every significant change.
+
+\paragraph{Version control.}
+Use \texttt{git} to track all changes. Commit frequently, with a short subject line
+and an extended body that explains \emph{why} the change was made, not just what
+was changed. A useful commit format in the terminal is:
+\begin{lstlisting}[numbers=none,frame=none]
+git commit -m "Short summary (50 chars or less)" \
+           -m "Extended explanation: what was tried, what
+               failed, and why this approach was chosen."
+\end{lstlisting}
+Alternatively, maintain a separate plain-text log file alongside the code for
+commit annotations. Good version history is invaluable when a previously working
+configuration needs to be recovered.
 
 \subsubsection{Potential issues}
-channel switches were sometimes observed (due to Convert(63) architecture). in the current code it did not occur during intensive testing. if it still persists (depending on the cause) should not lead to dataloss (or at least if we get dataloss this is not recoverable independent on the architecture (e.g., CS line corruption or CPU too busy). Still the switches are very annoying. By shorting one electrode recording channel to GND channel switches can be observed and (apart from the actually lost data), the signal can be recovered in postprocessing).
-\TODO{}
+If unexpected channel switching is observed, see the channel resynchronisation
+discussion in Section~\ref{sec:gui} (Methods) for the confirmed causes, the
+recovery procedure via the \texttt{Resync Channels} button, and the GND-shorting
+diagnostic technique.
 
 \subsubsection{Flashing Code on Non-Development Kit nRF52832}
 \label{app:flash_ndk}
