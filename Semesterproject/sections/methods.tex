@@ -3,13 +3,15 @@
 The starting point for this project was a prior implementation~\cite{prior_impl} that
 demonstrated the BLE communication pipeline, achieving 2\,kHz sampling on a single channel
 via a CPU-polling loop. This approach had a fundamental limitation: the Nordic SoftDevice
-preempts the application at every BLE connection event (every 7.5--10\,ms), occupying
-interrupt priority levels 0, 1, and~4; since application code is restricted to the
-remaining priority levels, the SoftDevice can always preempt application tasks. For a
-peripheral connection event transmitting two to three data packets, as required by the
-throughput demands of this system, the total preemption time per connection event is
-approximately 400--500\,\textmu{}s (see Appendix~\ref{app:softdevice_timing})
-\cite[Table~36]{nordic_s132_sds_v71}, occurring every 7.5--10\,ms. In the prior
+preempts the application at every BLE connection event (every 10\,ms at the
+empirically negotiated connection interval; the firmware-configured range is
+7.5--10\,ms), occupying interrupt priority levels 0, 1, and~4; since application
+code is restricted to the remaining priority levels, the SoftDevice can always
+preempt application tasks. For a peripheral connection event transmitting two to
+three data packets, as required by the throughput demands of this system, the total
+preemption time per connection event is approximately 400--500\,\textmu{}s (see
+Appendix~\ref{app:softdevice_timing}) \cite[Table~36]{nordic_s132_sds_v71},
+occurring every 10\,ms. In the prior
 CPU-polling approach, this preemption directly interrupted the SPI acquisition loop,
 causing missed samples. The reported 90\,kbps data rate furthermore reflects synthetic
 test data rather than real acquisition: at 2\,kHz on a single 16-bit channel, the true

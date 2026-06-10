@@ -60,19 +60,23 @@ and with 112 samples per BLE packet, the required packet rate is:
 \frac{32{,}000}{112} \approx 285.7 \text{ packets/s}
 \end{equation}
 
-At the minimum connection interval of 7.5~ms, this corresponds to:
-
-\begin{equation}
-285.7 \times 0.0075 \approx 2.1 \text{ packets per connection event}
-\end{equation}
-
-At the maximum connection interval of 10~ms:
+The firmware configures a connection interval range of 7.5--10\,ms; the
+empirically negotiated value throughout all experiments in this work was 10\,ms
+(confirmed by inspection of the power consumption time course,
+Figure~\ref{fig:power_timecourse}). At 10\,ms:
 
 \begin{equation}
 285.7 \times 0.010 \approx 2.9 \text{ packets per connection event}
 \end{equation}
 
-The system therefore transmits 2--3 packets per connection event. Each 
+For completeness, at the minimum configured interval of 7.5\,ms:
+
+\begin{equation}
+285.7 \times 0.0075 \approx 2.1 \text{ packets per connection event}
+\end{equation}
+
+The system therefore transmits 2--3 packets per connection event; since the
+negotiated interval is 10\,ms, the 3-packet scenario is the relevant upper bound. Each 
 additional packet beyond the first adds one further 
 $t_{\text{ISR}(0),\text{RadioProcessing}}$ interrupt (to handle the 
 acknowledgement) and one $t_{\text{ISR}(4)}$ interrupt (to deliver the 
@@ -93,7 +97,8 @@ t_{\text{3 packets}} &= 299 + 200 = 499~\text{\textmu s}
 \end{align}
 
 This gives a total preemption window of approximately 400--500~\textmu s per
-connection event, occurring every 7.5--10~ms.
+connection event, occurring every 10\,ms (empirically negotiated value;
+configured range 7.5--10\,ms).
 
 \subsection*{Meaning of $t_{n\text{ISR}(0)}$}
 
