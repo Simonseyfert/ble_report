@@ -561,6 +561,16 @@ discussion in Section~\ref{sec:gui} (Methods) for the confirmed causes, the
 recovery procedure via the \texttt{Resync Channels} button, and the GND-shorting
 diagnostic technique.
 
+\paragraph{Noisy or Drifting Signal During Bench Testing.}
+When validating recordings on the bench without implanted electrodes, always
+short the RHS2116 REF pin to GND. The on-chip amplifiers measure the difference
+between each electrode input and the REF pin; without a tissue reference
+electrode present, REF floats and acts as an antenna for environmental
+interference, which appears as large-amplitude noise on every recorded channel.
+Shorting REF to GND provides a stable 0\,V reference and allows clean
+function-generator test signals to be observed. On the carrier board connector,
+a short wire or solder bridge between the REF and GND pins is sufficient.
+
 \subsubsection{Flashing Code on Non-Development Kit nRF52832}
 \label{app:flash_ndk}
 

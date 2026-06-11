@@ -120,6 +120,19 @@ The wireless neural recording and stimulation system comprises four main compone
 
 Data flow proceeds as follows. In recording mode, the peripheral drives the Intan chip to continuously sample neural signals via SPI. Acquired samples are written directly to an active DMA buffer without CPU involvement, using the nRF52832's EasyDMA peripheral in list mode. When the active buffer approaches capacity (at approximately 80\% full), the CPU swaps the two DMA lists and resets the write pointer, allowing acquisition to continue uninterrupted into the previously inactive buffer. The data in the now-inactive buffer is then copied into a larger ring buffer, from which the CPU assembles structured packets for BLE transmission to the central. The central receives the packets and forwards them to the host computer via SEGGER Real-Time Transfer (RTT), a high-speed debug channel provided by the J-Link interface. The GUI parses the RTT data stream and renders voltage traces in real time.
 
+The nRF52832 was chosen over comparable alternatives --- in particular the nRF52840,
+which adds more RAM (256\,KB vs.\ 64\,KB), USB, and a higher maximum TX power --- on
+the basis of size and power. The nRF52832 is available in a WLCSP49 package measuring
+only $2.956 \times 3.226$\,mm, while the nRF52840's smallest package (WLCSP) measures
+$3.544 \times 3.607$\,mm --- approximately 34\,\% larger by area. For an implantable
+system targeting the rat spinal cord, this difference is significant.
+On power, the nRF52832 draws approximately 5.3\,mA during BLE transmission at 0\,dBm,
+compared to approximately 6.5\,mA for the nRF52840 --- a roughly 23\,\% increase for no
+functional benefit in this application. The nRF52832 provides all required capabilities:
+sufficient flash (512\,KB) and RAM (64\,KB) for the firmware, the PPI and EasyDMA
+peripherals central to the acquisition pipeline, three independent SPIM and SPIS
+instances, and BLE 5.0. No feature of the nRF52840 is required by the present design.
+
 Both nRF52832 nodes were operated as Development Kits (DKs) --- evaluation boards with
 an integrated SEGGER J-Link debugger --- rather than more compact modules, to facilitate
 firmware debugging through their integrated J-Link interfaces and direct
@@ -388,7 +401,7 @@ operation and firmware flashing: two LEDs and the
 necessary programming pins, with no buttons or other peripherals. The final
 step further reduces the nRF52832 chip itself from the QFN48
 (6$\times$6\,mm, 48 pins~\cite[p.~544]{nordic_nrf52832_ps}) to the WLCSP49
-(3.0$\times$3.2\,mm, 49 solder balls~\cite[p.~545]{nordic_nrf52832_ps})
+(2.956$\times$3.226\,mm, 49 solder balls~\cite[p.~545]{nordic_nrf52832_ps})
 package, achieving the most compact form factor. The miniaturized
 peripheral was validated end-to-end under wireless power transfer conditions,
 as described in Section~\ref{sec:results_noise}.
@@ -425,7 +438,7 @@ as described in Section~\ref{sec:results_noise}.
     (a)--(c) run identical firmware and each interface with the Intan RHS2116 via an
     external carrier board (see Figure~\ref{fig:wiring_connector}).
     (d) Prototype flex PCB co-integrating the nRF52832 and Intan RHS2116 on the same
-    substrate (non-rectangular outline, bounding box $\approx$39$\times$29\,mm), with an
+    substrate (non-rectangular outline, bounding box 39$\times$29\,mm), with an
     on-board square-wave oscillator switchable to Intan input pin~0, intended for
     calibration signal injection in the wireless power transfer field
     (see Section~\ref{sec:results_noise}).}
@@ -434,7 +447,7 @@ as described in Section~\ref{sec:results_noise}.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.7\textwidth]{figures/wiring_intan_wlcsp_connector_board.png}
+    \includegraphics[width=0.9\textwidth]{figures/wiring_intan_wlcsp_connector_board.png}
     \caption{Connection setup for the standalone nRF52832 modules. An intermediate
     carrier board routes SPI signals and power between the nRF52832 module pin header
     and the standard Intan headstage connector. The QFN48 module is shown; the
@@ -460,7 +473,11 @@ To characterise signal quality, a sinusoidal test signal from a function
 generator (NTi Minirator MR2/MR-PRO~\cite{nti_minirator_mr2} or Keysight
 33500B Series~\cite{keysight_33500b}) was injected into one recording channel via the
 carrier board connector (one terminal to the electrode input, the other to
-GND/REF). With the green carrier board and the function generator cables far from
+GND/REF). Throughout bench testing the RHS2116 REF input was shorted to GND:
+without a tissue reference electrode present, this provides a stable 0\,V
+reference for the on-chip differential amplifiers and prevents the floating REF
+pin from acting as an antenna for environmental interference.
+With the green carrier board and the function generator cables far from
 the transmitter coil, the recorded sine wave was clean. As the assembly was moved
 progressively closer to the transmitter, the signal became increasingly corrupted
 by interference; the degree of corruption also depended on how close the function
@@ -618,7 +635,7 @@ protocol ISRs --- so that nothing can preempt the code between \texttt{enter} an
 resumes Timer1 (restarting acquisition). Without this protection, an interrupt
 occurring after Timer1 is stopped but before it is restarted would extend the
 acquisition gap beyond ${\approx}250$\,ns, causing sample loss during that delay:
-
+\newpage
 \begin{lstlisting}[language=C]
 sd_nvic_critical_region_enter(&is_nested);
 nrf_drv_timer_pause(&timer1);

@@ -335,8 +335,7 @@ field of the WPT transmitter --- even without external cables attached.
 To characterise the interference quantitatively without the confound of the input
 signal, channel~7 was shorted to GND on the carrier board (nearest recording channel
 to the GND supply pin; see Figure~\ref{fig:connector_pinout}). The results at three
-distances are shown in Figures~\ref{fig:shorted_30cm}, \ref{fig:shorted_4cm},
-and~\ref{fig:shorted_inside}.
+distances are shown in Figure~\ref{fig:noise_shorted}.
 
 At 30\,cm from the coil edge the interference is modest: peak-to-peak excursions
 are mostly within $\pm10$\,\textmu{}V (20\,\textmu{}V$_\text{pp}$), with occasional
@@ -352,29 +351,16 @@ $+4000$\,\textmu{}V --- well beyond the $\pm5$\,mV input range of the RHS2116.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.55\textwidth]{figures/shorted_30cm_distance.png}
-    \caption{GND-shorted channel~7 at 30\,cm from the WPT transmitter coil.
-    Peak-to-peak excursions are mostly within $\pm10$\,\textmu{}V, with occasional
-    peaks at $\pm15$\,\textmu{}V ($\approx$2$\times$ the amplifier noise floor).}
-    \label{fig:shorted_30cm}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.55\textwidth]{figures/shorted_4cm_distance.png}
-    \caption{GND-shorted channel~7 at 4\,cm from the WPT transmitter coil.
-    Interference reaches $+50$ to $+60$\,\textmu{}V and occasionally
-    $-90$\,\textmu{}V.}
-    \label{fig:shorted_4cm}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.55\textwidth]{figures/shorted_inside.png}
-    \caption{GND-shorted channel~7 with the carrier board inside the WPT
-    transmitter coil. The amplifier input is fully saturated, spanning $-6000$
-    to $+4000$\,\textmu{}V.}
-    \label{fig:shorted_inside}
+    \includegraphics[width=\textwidth]{figures/noise_shorted.png}
+    \caption{GND-shorted channel~7 at three distances from the WPT transmitter
+    coil. \textit{(a)}~30\,cm: peak-to-peak excursions mostly within
+    $\pm10$\,\textmu{}V, with occasional peaks at $\pm15$\,\textmu{}V
+    ($\approx$2$\times$ the amplifier noise floor).
+    \textit{(b)}~4\,cm: interference reaches $+50$ to $+60$\,\textmu{}V and
+    occasionally $-90$\,\textmu{}V.
+    \textit{(c)}~Inside the coil: the amplifier input is fully saturated,
+    spanning $-6000$ to $+4000$\,\textmu{}V.}
+    \label{fig:noise_shorted}
 \end{figure}
 
 \subsubsection*{Direct On-Chip Measurement}

@@ -1,3 +1,4 @@
+\clearpage
 \section{Discussion}
 \label{sec:discussion}
 
@@ -106,3 +107,27 @@ Validation should then proceed first in vitro --- confirming signal integrity an
 noise performance in a controlled environment without biological variability ---
 before advancing to in vivo implantation studies to assess chronic performance
 and tissue compatibility.
+
+A separate firmware-level extension worth exploring is support for the full 32 channels
+available on the headstage, which carries two Intan RHS2116 chips. The present firmware
+uses only one. The headstage connector exposes two MOSI and two MISO lines (one pair
+per chip) alongside a shared SCLK and CS. To drive both chips with the same
+\texttt{CONVERT(63)} command, MOSI1 and MOSI2 would need to carry the same signal;
+the simplest way to achieve this is a single solder bridge on the connector board tying
+the two MOSI pins together, after which one SPI master drives both chips simultaneously.
+The nRF52832 provides a SPI slave peripheral (SPIS) with EasyDMA on a separate
+peripheral instance from the SPI master (SPIM), meaning both can operate concurrently.
+A possible approach would then be to configure SPIS on instance~1 as a passive bus
+listener alongside SPIM on instance~0: SPIS observes the same SCLK and CS, and
+captures the second chip's MISO into its own EasyDMA buffer in parallel with the first.
+After each DMA buffer swap, the two inactive buffers --- one per chip --- could be
+copied interleaved to the ring buffer, producing a contiguous 32-channel data stream
+(Ch01--Ch16 from chip~1, Ch17--Ch32 from chip~2) at the same SPI clock rate as the
+current single-chip design. At 1\,kHz per channel, the total SPI transaction rate is
+identical to the current 16-channel, 2\,kHz configuration, so no changes to the BLE
+throughput budget or timing architecture would be required. A per-channel rate of
+1\,kHz remains above the Nyquist frequency for LFP signals up to approximately
+300\,Hz~\cite{reimann2013biophysically} and would therefore preserve the full signal
+content of interest. This approach has not been implemented or tested and would require
+the hardware modification described above; it is presented here as a plausible extension
+path, not a validated result.
