@@ -439,8 +439,8 @@ Placing projects elsewhere in the filesystem can cause SES to fail to
 resolve SDK include paths.
 
 \paragraph{Getting Started.}
-The YouTube tutorial playlist by Eirik
-Haustveit\footnote{\url{https://youtube.com/playlist?list=PLiKJljyEUlZj4z8RqJKTaoMpSqjLdBGO4}}
+The YouTube tutorial playlist by Sumair Raza (Sumair's Embedded
+Engineering)\footnote{\url{https://youtube.com/playlist?list=PLiKJljyEUlZj4z8RqJKTaoMpSqjLdBGO4}}
 provides a practical introduction to BLE development with the nRF52832 and
 nRF5~SDK. It is a useful starting point for understanding the project
 structure and trying out first example codes before working with the project
@@ -623,7 +623,7 @@ The J-Link Software and Documentation Pack is required in all usage modes
     \item \textbf{From source.} Download \texttt{gui\_rec\_stim.py} from the project
     repository, install dependencies with \texttt{pip install -r requirements.txt},
     and run the script from a terminal or your preferred IDE.
-    \item \textbf{Pre-built executable.} Release~v1.0.0 on the project repository
+    \item \textbf{Pre-built executable.} Release~v1.0.1 on the project repository
     provides standalone executables for Windows, macOS, and Linux that do not require
     a Python installation. Download the appropriate binary and run it directly.
 \end{itemize}
@@ -762,16 +762,14 @@ when stimulation ends.
 
 \subparagraph{Global Parameters} (upper panel, apply equally to all channels):
 \begin{itemize}
-    \item \textbf{Step size}: current step resolution of the Intan RHS2116
-    stimulation DAC. Options range from 10\,nA to 10\,\textmu{}A (default
-    2\,\textmu{}A). A finer step gives better amplitude resolution but a lower
-    maximum current; a coarser step increases the maximum current at the cost
-    of resolution.
-
     \item \textbf{Cat amp / Ano amp}: global default cathodic and anodic
-    amplitudes (0--2550\,\textmu{}A each, default 100\,\textmu{}A). Changing
+    amplitudes (0--510\,\textmu{}A each, default 100\,\textmu{}A). Changing
     either value propagates to all per-channel rows simultaneously; individual
-    channels can be adjusted independently afterwards.
+    channels can be adjusted independently afterwards. The current amplitude
+    resolution is fixed at the Intan RHS2116 power-on default of
+    2\,\textmu{}A per DAC step, giving an effective range of
+    2--510\,\textmu{}A in 2\,\textmu{}A increments (see
+    Section~\ref{sec:gui} for details and the planned improvement).
 
     \item \textbf{Cat PW / Ano PW}: cathodic and anodic pulse widths
     (10--10\,000\,\textmu{}s each, default 200\,\textmu{}s). Global-only;
