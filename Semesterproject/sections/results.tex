@@ -37,7 +37,7 @@ Section~\ref{sec:results_power} and Appendix~\ref{app:power_data}.
 
 The end-to-end recording pipeline was validated by injecting a 300\,Hz, 1\,mV
 sinusoidal signal from a Keysight 33500B Waveform
-Generator~\cite{keysight33500b} into the Intan RHS2116
+Generator~\cite{keysight_33500b} into the Intan RHS2116
 input via the carrier board connector. This frequency corresponds to the upper
 limit of the LFP band targeted by the system~\cite{reimann2013biophysically}
 and was chosen specifically to demonstrate faithful reconstruction of the
@@ -76,12 +76,60 @@ number of samples per period (13.3 samples/period at 4\,kHz vs.\ 6.7 at 2\,kHz).
 \subsection{BLE Throughput and Packet Loss}
 \label{sec:results_ble}
 
-\TODO{}
+In the 16-channel, 2\,kHz-per-channel configuration, measured BLE throughput
+reached up to approximately 540\,kbps under stable operating conditions.
+This confirms that the hardware-driven PPI/EasyDMA pipeline sustains the full
+required data rate with real SPI acquisition data, in contrast to the prior
+implementation whose reported 600\,kbps maximum was measured with synthetic
+data only.
+
+Under normal operating conditions --- stable power supply, no recent power
+interruption, and a stable CS line --- no packet loss was observed during
+continuous recording sessions. The rolling 16-bit packet counter and the
+GUI's per-packet loss detection (described in Section~\ref{sec:methods}) allow
+any deviations from this baseline to be detected and quantified in real time.
+After a power interruption and subsequent reconnection, throughput recovers to
+its maximum value within approximately 2--3\,s; packets received during this
+ramp-up period should be discarded (see Section~\ref{sec:results_noise}).
 
 \subsection{Stimulation Waveform Validation}
 \label{sec:results_stim}
 
-\TODO{}
+Charge-balanced biphasic stimulation was validated on the bench using an
+oscilloscope to verify the waveform shape and amplitude. Figure~\ref{fig:stim_osc}
+shows simultaneous stimulation on two channels. Both channels use equal cathodic
+and anodic pulse widths of 400\,\textmu{}s with an interphase delay of
+approximately 25\,\textmu{}s. The two channels operate at different amplitudes:
+the upper trace (blue) carries approximately half the current of the lower trace
+(yellow), demonstrating independent per-channel amplitude control. The waveforms
+are charge-balanced and the biphasic shape is clearly resolved. The low-level
+noise visible on the traces originates from the bench measurement setup, not from
+the firmware or stimulation hardware.
+
+Figure~\ref{fig:stim_gui} shows the stimulation control window used to configure
+and trigger the stimulation sequence.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\textwidth]{figures/oscilloscope_two_channels_stim.jpg}
+    \caption{Oscilloscope trace of simultaneous two-channel biphasic stimulation.
+    Both channels: 400\,\textmu{}s cathodic phase, 400\,\textmu{}s anodic phase,
+    $\approx$25\,\textmu{}s interphase delay. The upper channel (blue) has
+    approximately half the amplitude of the lower channel (yellow), demonstrating
+    independent per-channel amplitude control.}
+    \label{fig:stim_osc}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{figures/stimulation_gui.png}
+    \caption{Stimulation control window of the Python GUI. Global parameters
+    (step size, pulse widths, interphase delay, frequency, number of pulses) are
+    configured in the upper panel; per-channel enable and amplitude are set
+    individually in the lower rows. Each channel row displays a live waveform
+    preview and a charge balance indicator.}
+    \label{fig:stim_gui}
+\end{figure}
 
 \subsection{Power Consumption}
 \label{sec:results_power}
@@ -93,7 +141,7 @@ reference. Full measurement tables for both voltages are provided in
 Appendix~\ref{app:power_data}. The nRF52832-only reference value was measured
 at the actual bench supply of 3.020\,V (equivalent to 20.4\,mW at 3.3\,V).
 
-\subsubsection*{Power vs.\ channel count at fixed 2\,kHz per channel}
+\subsubsection*{Power vs.\ Channel Count at Fixed 2\,kHz per Channel}
 
 Figure~\ref{fig:power_2khz} shows combined system power consumption as a function
 of the number of active recording channels, all operated at 2\,kHz per channel.
@@ -119,7 +167,7 @@ total).
     \label{fig:power_2khz}
 \end{figure}
 
-\subsubsection*{Maximum achievable rate and power vs.\ channel count}
+\subsubsection*{Maximum Achievable Rate and Power vs.\ Channel Count}
 
 Figure~\ref{fig:power_maxrate} shows the maximum achievable per-channel sampling
 rate and the corresponding combined power consumption as a function of channel
@@ -134,10 +182,30 @@ visible dip in power for these two configurations.
 The 1-channel configuration at its maximum rate of 32\,kHz per channel has the
 same SPI rate (32\,kHz) and BLE throughput (32\,000 samples/s) as the
 16-channel, 2\,kHz configuration, and would therefore be expected to show
-comparable power. The measured value is somewhat higher; a likely contributor
-is the difference in Intan RHS2116 register configuration between single-channel
-mode (\texttt{CONVERT($k$)}) and multi-channel mode (\texttt{CONVERT(63)}),
-though this has not been confirmed. \TODO{Revisit once 3.0\,V vs 3.6\,V data are available; check whether Convert(k) consistently draws more power than Convert(63) across repeated measurements.}
+comparable power. The measured value is consistently higher, and the difference can be attributed to
+the Intan RHS2116 command mode: comparing configurations with identical SPI
+transaction rates and BLE throughput isolates the command sequence as the sole
+varying factor. At 16\,kHz SPI (1-channel 16\,kHz vs.\ 16-channel 1\,kHz per channel),
+\texttt{CONVERT($k$)} draws approximately 7--8\,\% more power than
+\texttt{CONVERT(63)} across both supply voltages. At 32\,kHz SPI (1-channel 32\,kHz
+vs.\ 16-channel 2\,kHz per channel) the excess is approximately 12--14\,\%, consistent
+across 3.0\,V and 3.6\,V and reproduced in the second independent 3.6\,V measurement
+run. The mechanism is not documented in the RHS2116 datasheet and cannot be confirmed
+from available documentation; the excess likely reflects an internal difference in
+how the chip handles the two command types, but this remains speculative. This finding has a counterintuitive implication for system design. A
+\texttt{CONVERT($k$)}-based architecture for 2--3-channel configurations would
+avoid the fixed $16\times$ SPI overhead: two channels at 2\,kHz would require only
+4\,kHz total SPI transactions instead of 32\,kHz, raising the per-channel rate
+ceiling and intuitively suggesting a power saving. The present data, however, show
+that each \texttt{CONVERT($k$)} transaction is 7--14\,\% more expensive than a
+\texttt{CONVERT(63)} transaction at the same total SPI rate --- contrary to the
+expectation that issuing commands for only the selected channels would be cheaper.
+Whether this per-transaction overhead would be fully or partially offset by the
+reduction in transaction count is not determinable from the available data; a direct
+measurement of a \texttt{CONVERT($k$)}-based multi-channel implementation would be
+required. For LFP recording at 2\,kHz per channel, neither configuration approaches
+the SPI or BLE ceiling, so the question is of limited practical significance in the
+target application.
 
 \begin{figure}[h]
     \centering
@@ -150,7 +218,7 @@ though this has not been confirmed. \TODO{Revisit once 3.0\,V vs 3.6\,V data are
     \label{fig:power_maxrate}
 \end{figure}
 
-\subsubsection*{Power consumption time course}
+\subsubsection*{Power Consumption Time Course}
 
 Figure~\ref{fig:power_timecourse} shows the power consumption over time for the
 1-channel, 2\,kHz per channel configuration at 3.6\,V. The full 2.866\,s trace
@@ -190,7 +258,7 @@ The large periodic spikes arise from the CPU work at each DMA buffer swap: copyi
 BLE packets (see Section~\ref{sec:discussion_ringbuffer} for a discussion of
 alternative architectures).
 
-\subsubsection*{Effect of supply voltage: 3.0\,V vs 3.6\,V}
+\subsubsection*{Effect of Supply Voltage: 3.0\,V vs 3.6\,V}
 
 Power consumption at 3.0\,V is uniformly lower than at 3.6\,V across all
 configurations, with a measured ratio $P(3.0\,\text{V})\,/\,P(3.6\,\text{V})
@@ -202,7 +270,7 @@ The ratio falls between the predictions of a purely LDO-dominated model
 $\alpha \approx 1.47$. The full derivation and comparison figure are provided
 in Appendix~\ref{app:power_voltage}.
 
-\subsubsection*{Measurement repeatability}
+\subsubsection*{Measurement Repeatability}
 
 The 3.6\,V measurements were repeated in a second independent session
 (Table~\ref{tab:power_repeat} in Appendix~\ref{app:power_data}).
@@ -221,14 +289,26 @@ plots for the two runs are provided in Appendix~\ref{app:power_repeat}.
 \subsection{Electromagnetic Interference in the WPT Field}
 \label{sec:results_noise}
 
-\subsubsection*{Basic wireless power operation}
+The primary motivation for progressively miniaturising the peripheral module was
+compatibility with wireless power delivery. Using the WPT system developed in
+parallel within the lab (developed by Marta), the complete peripheral --- nRF52832 and
+Intan RHS2116 --- was operated with no wired power supply. This represents the
+most significant system-level result of this work: the full wireless architecture
+(wireless power \emph{and} wireless data) was validated end-to-end for the first
+time. The measurements below first confirm successful operation, then quantify the
+electromagnetic interference introduced by the transmitter coil field.
+
+\subsubsection*{Basic Wireless Power Operation}
 
 With the peripheral powered via the WPT system and the Intan RHS2116 located
 outside the transmitter coil field, the 300\,Hz sinusoidal test signal was
 successfully acquired and transmitted over BLE, confirming end-to-end operation
-under wireless power.
+under wireless power. Following a momentary power interruption and automatic
+reconnection, BLE throughput recovered to its maximum value within approximately
+2--3\,s; data acquired during this ramp-up period are unreliable and should be
+discarded.
 
-\subsubsection*{Interference with carrier board in the WPT field}
+\subsubsection*{Interference with Carrier Board in the WPT Field}
 
 When the Intan RHS2116 on its carrier board was placed inside the transmitter coil
 field, the 300\,Hz sinusoidal input was no longer recoverable. The most likely
@@ -281,7 +361,7 @@ $+4000$\,\textmu{}V --- well beyond the $\pm5$\,mV input range of the RHS2116.
     \label{fig:shorted_inside}
 \end{figure}
 
-\subsubsection*{Direct on-chip measurement}
+\subsubsection*{Direct On-Chip Measurement}
 
 Shorting channel~0 directly on the Intan RHS2116 die, bypassing the carrier board
 and its wiring, reduced the interference to $\pm20$--$30$\,\textmu{}V
@@ -315,76 +395,3 @@ factor: eliminating external wiring is the key step toward making the system
 compatible with the WPT field.
 
 
-\begin{comment}
-\subsection{SPI Transaction Time Measurement}
-
-Figure~\ref{fig:spi_burst_cursors} shows the oscilloscope cursor measurement 
-used to determine the SPI transaction time. Cursors were placed at the start 
-and end of a burst of 67 consecutive SPI transactions, yielding a total burst 
-duration of 346\,\textmu s and a mean transaction time of 5.164\,\textmu s 
-(Equation~\ref{eq:spi_transaction_time}). The built-in Period measurement 
-function confirmed a value in the same range but exhibited cycle-to-cycle 
-jitter, motivating the use of the cursor-based aggregate measurement as the 
-calibration value.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.6\textwidth]{figures/spi_burst_cursors.png}
-    \caption{Oscilloscope cursor measurement of 67 consecutive SPI transactions 
-    on the Tektronix DPO~2024. The total burst duration of 346\,\textmu s 
-    yields a mean transaction time of $346/67 = 5.164$\,\textmu s, used as 
-    the calibration constant \texttt{SPI\_TRANSACTION\_TIME\_US} in the 
-    stimulation firmware.}
-    \label{fig:results_spi}
-\end{figure}
-
-\subsection{Stimulation Waveform Validation}
-\label{sec:results_stim}
-
-Figure~\ref{fig:stim_oscilloscope} shows the biphasic stimulation waveform 
-measured at the Intan RHS2116 output using the Tektronix DPO~2024 oscilloscope. 
-The waveform exhibits the expected charge-balanced biphasic shape: a cathodic 
-(negative) phase, followed by an interphase gap, and an anodic (positive) phase. 
-The measured phase durations and amplitudes are consistent with the parameters 
-configured in the GUI stimulation interface (Figure~\ref{fig:stim_gui}).
-
-\begin{figure}[htbp]
-    \centering
-    \begin{subfigure}[b]{0.53\textwidth}
-        \centering
-        \includegraphics[height=5cm]{figures/oscilloscope_stim.png}
-        \caption{Oscilloscope trace of the biphasic stimulation waveform.}
-        \label{fig:stim_oscilloscope}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.43\textwidth}
-        \centering
-        \includegraphics[height=5cm]{figures/gui_stim_window.png}
-        \caption{Corresponding stimulation parameters as configured 
-        in the GUI.}
-        \label{fig:stim_gui}
-    \end{subfigure}
-    \caption{Stimulation waveform validation. The oscilloscope trace 
-    confirms correct biphasic pulse shape, timing, and charge balance 
-    consistent with the GUI-configured parameters.}
-    \label{fig:stim_combined}
-\end{figure}
-
-\subsection{Neural Signal Recording}
-
-Figure~\ref{fig:gui_recording} shows a screenshot of the GUI during live 
-16-channel recording from the Intan RHS2116. All 16 channels are displayed 
-simultaneously at 2\,kHz per channel, with real-time packet loss monitoring 
-visible in the status bar.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\textwidth]{figures/gui_recording.png}
-    \caption{GUI screenshot during live 16-channel neural signal recording. 
-    Voltage traces for all 16 Intan RHS2116 channels are rendered in real 
-    time at 2\,kHz per channel. The status bar displays throughput and 
-    packet loss metrics.}
-    \label{fig:gui_recording}
-\end{figure}
-
-\end{comment}

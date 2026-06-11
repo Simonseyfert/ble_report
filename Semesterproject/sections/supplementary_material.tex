@@ -7,15 +7,15 @@
 
 The Nordic S132 SoftDevice preempts the application at every BLE connection 
 event to handle radio and stack operations. The timing parameters for a 
-peripheral connection event are given in Table~36 of the S132 SoftDevice 
-Specification v7.1~\cite{nordic_s132_sds_v71}, reproduced in 
+peripheral connection event are given in Table~36 of the S132 SoftDevice
+Specification v7.2.0~\cite{nordic_s132_sds_v72}, reproduced in 
 Table~\ref{tab:softdevice_timing} below. The system does not employ encryption, 
 PA/LNA, or the Radio Timeslot API, so typical values apply.
 
 \begin{table}[h]
 \centering
 \caption{SoftDevice processor usage during a peripheral connection event 
-(reproduced from Nordic S132 SDS v7.1, Table~36~\cite{nordic_s132_sds_v71}).}
+(reproduced from Nordic S132 SDS v7.2.0, Table~36~\cite{nordic_s132_sds_v72}).}
 \label{tab:softdevice_timing}
 \begin{tabular}{llccc}
 \toprule
@@ -32,7 +32,7 @@ $t_{\text{ISR}(4)}$                        & Priority level 4 interrupt per pack
 \end{tabular}
 \end{table}
 
-\subsection*{Single-packet baseline}
+\subsection*{Single-Packet Baseline}
 
 The datasheet gives the following formula for one packet sent and received 
 per connection event:
@@ -52,7 +52,7 @@ The factor of $2 \cdot t_{\text{ISR}(4)}$ reflects two priority-level-4 interrup
 fired at the end of the event for stack cleanup and application event delivery, 
 both associated with packet reception processing.
 
-\subsection*{Extension to multiple packets per connection event}
+\subsection*{Extension to Multiple Packets per Connection Event}
 
 At a sampling rate of 32\,000 SPI transactions per second across 16 channels, 
 and with 112 samples per BLE packet, the required packet rate is:
@@ -97,18 +97,25 @@ t_{\text{2 packets}} &= 299 + 100 = 399~\text{\textmu s} \\
 t_{\text{3 packets}} &= 299 + 200 = 499~\text{\textmu s}
 \end{align}
 
-This gives a total preemption window of approximately 400--500~\textmu s per
-connection event, occurring every 10\,ms (empirically negotiated value;
-configured range 7.5--10\,ms).
+This gives a total SoftDevice CPU time of approximately 400--500\,\textmu{}s per
+connection event, occurring every 10\,ms (empirically negotiated value; configured
+range 7.5--10\,ms). These ISRs are not executed consecutively: they are separated
+by gaps of at least $t_{n\text{ISR}(0)} = 183$\,\textmu{}s during which the CPU
+is available to the application.
 
-\subsection*{Meaning of $t_{n\text{ISR}(0)}$}
+\subsection*{Meaning of $t_{n\text{ISR}(0)}$ and Non-Consecutive Execution}
 
 $t_{n\text{ISR}(0)}$ is the minimum time between two consecutive priority-0 ISR
-firings within a single connection event. At a minimum of 183\,\textmu{}s, this
-is far larger than the DMA buffer swap operation ($\approx$250\,ns), so the swap
-is guaranteed to complete before the next SoftDevice interrupt fires.
+firings within a single connection event. The $\geq$183\,\textmu{}s gaps between
+ISRs represent idle CPU time during which application interrupts can execute.
+\texttt{timer2\_count\_handler} (priority~6) therefore does not wait for the
+entire 700\,\textmu{}s of SoftDevice CPU time to elapse --- it runs as soon as
+the currently executing SoftDevice ISR and any immediately following
+$t_{\text{ISR}(4)}$ complete. The 183\,\textmu{}s gap is also far larger than
+the DMA buffer swap itself ($\approx$250\,ns), guaranteeing the swap completes
+before the next SoftDevice ISR fires.
 
-\subsection*{Worst-case preemption}
+\subsection*{Total SoftDevice CPU Time per Connection Event}
 
 Using the maximum column values from Table~\ref{tab:softdevice_timing} (note:
 $t_{\text{ISR}(4)}$ has no published maximum; typical value of 40\,\textmu{}s used):
@@ -118,14 +125,40 @@ t_{\text{2 pkts, max}} &= 486 + (67 + 40) = 593~\text{\textmu{}s} \\
 t_{\text{3 pkts, max}} &= 486 + 2 \times (67 + 40) = 700~\text{\textmu{}s}
 \end{align}
 
-At the maximum SPI rate of 128\,kHz (2-channel recording configuration), the time
-available to complete the DMA buffer swap before the active buffer overflows is:
+These values represent the total SoftDevice CPU time per connection event, not a
+single continuous block.
+
+\subsection*{Worst-Case Handler Delay}
+
+Since \texttt{timer2\_count\_handler} runs in the inter-ISR gaps, the relevant
+bound is the maximum duration of any single blocking sequence. The longest
+priority-0 ISR is $t_{\text{ISR}(0),\text{PostProcessing}}$ at 250\,\textmu{}s
+(max), immediately followed by one $t_{\text{ISR}(4)}$ firing at 40\,\textmu{}s
+(typical; no maximum published). The worst-case delay before the handler executes
+is therefore:
+\begin{equation}
+t_{\text{delay,max}} = t_{\text{ISR}(0),\text{PostProcessing,max}} + t_{\text{ISR}(4)}
+= 250 + 40 = 290~\mu\text{s}
+\end{equation}
+
+Assigning \texttt{timer2\_count\_handler} to interrupt priority~2 or~3 (permitted
+under S132 --- only priorities 0 and~1 are SoftDevice-reserved --- but not
+implemented here) would prevent $t_{\text{ISR}(4)}$ at priority~4 from preempting
+the handler, reducing the bound to 250\,\textmu{}s. This is not necessary given
+the existing margin.
+
+\subsection*{Swap Window}
+
+At the maximum SPI rate of 128\,kHz (8\,kHz per channel; applicable to any channel
+count in multi-channel mode), the time available to complete the DMA buffer swap
+before the active buffer overflows is:
 \begin{equation}
 t_{\text{swap window}} =
 (\texttt{DMA\_BUF\_SAMPLES} - 819) \times \frac{1}{128\,\text{kHz}}
 = 205 \times 7.8125~\mu\text{s} \approx 1.6~\text{ms}
 \end{equation}
-The worst-case preemption of 700\,\textmu{}s is safely within the 1.6\,ms window.
+The worst-case handler delay of 290\,\textmu{}s is safely within the 1.6\,ms
+window by a factor of more than five.
 At the default configuration (16 channels, 2\,kHz per channel, 32\,kHz SPI), the
 window expands to $205 \times 31.25~\mu\text{s} \approx 6.4\,\text{ms}$.
 
@@ -361,7 +394,7 @@ and can be launched directly without a Python installation.
 To run from source, Python~3.10 or later is required; install dependencies
 with \texttt{pip install -r requirements.txt} and launch the main GUI script.
 
-\paragraph{Quick start.}
+\paragraph{Quick Start.}
 \begin{enumerate}
     \item Connect the central nRF52832 DK to the computer via USB and power it on.
     \item Power on the peripheral module (connected to the Intan RHS2116).
@@ -395,7 +428,7 @@ The following tools are required to build and flash the firmware.
     Provides J-Link drivers, RTT~Viewer, and related utilities.
 \end{itemize}
 
-\paragraph{SDK path.}
+\paragraph{SDK Path.}
 Place the two firmware project folders inside the SDK so that the paths are:
 \begin{lstlisting}[basicstyle=\ttfamily\small,breaklines=true,frame=none]
 nRF5_SDK_17.1.0_ddde560/examples/my_projects/
@@ -405,7 +438,7 @@ nRF5_SDK_17.1.0_ddde560/examples/my_projects/
 Placing projects elsewhere in the filesystem can cause SES to fail to
 resolve SDK include paths.
 
-\paragraph{Getting started.}
+\paragraph{Getting Started.}
 The YouTube tutorial playlist by Eirik
 Haustveit\footnote{\url{https://youtube.com/playlist?list=PLiKJljyEUlZj4z8RqJKTaoMpSqjLdBGO4}}
 provides a practical introduction to BLE development with the nRF52832 and
@@ -419,7 +452,7 @@ These steps apply when flashing to an nRF52832 Development Kit directly.
 For flashing to standalone non-DK modules (SparkFun breakout, custom
 WLCSP49), see Appendix~\ref{app:flash_ndk}.
 
-\paragraph{Peripheral (recording/stimulation side).}
+\paragraph{Peripheral (Recording/Stimulation Side).}
 \begin{enumerate}
     \item Open SEGGER Embedded Studio.
     \item Open \texttt{ble\_app\_uart - WORKING 1 channel/pca10040/s132/ses/\\
@@ -441,21 +474,17 @@ WLCSP49), see Appendix~\ref{app:flash_ndk}.
 Open \texttt{ble\_app\_uart\_c - WORKING 1 channel/pca10040/s132/ses/\\
 ble\_app\_uart\_c\_pca10040\_s132.emProject} and repeat steps 3--6 above.
 
-\paragraph{RTT output.}
+\paragraph{RTT Output.}
 To see RTT log output, open \textbf{J-Link RTT Viewer} (part of the J-Link
 Software Pack) separately before or after flashing. RTT messages are not
 visible in the nRF Connect for Desktop terminal.
-
-\subsubsection{Solved Errors}
-
-\TODO{}
 
 \subsubsection{Code Development}
 
 The following lessons were learned during the development of this project and are
 intended to help future developers avoid common pitfalls.
 
-\paragraph{On the use of AI assistants.}
+\paragraph{On the Use of AI Assistants.}
 Do not expect to describe the desired functionality or overall architecture to a
 large language model and have working embedded firmware in return --- in practice,
 nothing will work. Embedded systems programming is fundamentally different from
@@ -468,7 +497,7 @@ output as a starting point to read critically, not as code to paste blindly --- 
 closer the change is to the hardware, the more likely it is to contain subtle
 errors. Always cross-check generated code against the relevant datasheet.
 
-\paragraph{Step-by-step hardware bring-up.}
+\paragraph{Step-by-Step Hardware Bring-Up.}
 New hardware interactions should be developed incrementally, in the smallest
 testable steps possible. For example, before implementing the full PPI/DMA
 acquisition chain, first verify that the timer can toggle the CS line alone. Add
@@ -479,7 +508,7 @@ involving new PPI channels or switching between CPU and hardware control of
 peripherals such as the CS line --- will almost always fail and is very difficult
 to debug.
 
-\paragraph{Use the oscilloscope.}
+\paragraph{Use the Oscilloscope.}
 Hardware signals should be verified directly with an oscilloscope, not inferred
 from software behaviour. Checking the CS line, SCLK, and MISO/MOSI waveforms
 at each bring-up step catches problems that would otherwise produce silent failures
@@ -507,13 +536,13 @@ was pressed --- confirming that the Intan was never being initialised on startup
 The fix was to add the initialisation sequence back into the new code, called once
 at boot before the PPI chain is enabled.
 
-\paragraph{Test all features regularly.}
+\paragraph{Test All Features Regularly.}
 Every time a change is made, verify that all existing functionality still works ---
 not just the feature under development. There can be non-obvious timing dependencies
 between components, and a change to one part of the firmware can silently break
 another. Ideally, run a full end-to-end test after every significant change.
 
-\paragraph{Version control.}
+\paragraph{Version Control.}
 Use \texttt{git} to track all changes. Commit frequently, with a short subject line
 and an extended body that explains \emph{why} the change was made, not just what
 was changed. A useful commit format in the terminal is:
@@ -526,7 +555,7 @@ Alternatively, maintain a separate plain-text log file alongside the code for
 commit annotations. Good version history is invaluable when a previously working
 configuration needs to be recovered.
 
-\subsubsection{Potential issues}
+\subsubsection{Potential Issues}
 If unexpected channel switching is observed, see the channel resynchronisation
 discussion in Section~\ref{sec:gui} (Methods) for the confirmed causes, the
 recovery procedure via the \texttt{Resync Channels} button, and the GND-shorting
@@ -583,6 +612,213 @@ target instead of the intended peripheral. Since no Intan chip is connected to t
 this results in all-zero recorded signals. The DK must be powered off or its USB
 cable disconnected before starting a recording session.
 
-\subsubsection{GUI}
-\TODO{}
-Copy detailled GUI explanation from Github
+\subsubsection{GUI User Guide}
+\label{app:gui_guide}
+
+\paragraph{Running the GUI.}
+The J-Link Software and Documentation Pack is required in all usage modes
+(see Section~\ref{app:software_run}).
+
+\begin{itemize}
+    \item \textbf{From source.} Download \texttt{gui\_rec\_stim.py} from the project
+    repository, install dependencies with \texttt{pip install -r requirements.txt},
+    and run the script from a terminal or your preferred IDE.
+    \item \textbf{Pre-built executable.} Release~v1.0.0 on the project repository
+    provides standalone executables for Windows, macOS, and Linux that do not require
+    a Python installation. Download the appropriate binary and run it directly.
+\end{itemize}
+
+\paragraph{Development.}
+To modify the GUI, clone the project repository and create a fork (request
+repository access from the author first).
+
+\paragraph{Recording Controls.}
+Figure~\ref{fig:gui_recording} shows the main recording window.
+The channel labels in the plot (Ch01--Ch16) correspond directly to the
+Intan RHS2116 pin assignment.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{figures/recording_GUI.png}
+    \caption{Main recording window of the Python GUI showing 16-channel live
+    neural signal display. Channel labels in this screenshot are 0-based
+    (Ch00--Ch15); the current GUI version uses 1-based labels (Ch01--Ch16)
+    corresponding to the Intan RHS2116 pin assignment.}
+    \label{fig:gui_recording}
+\end{figure}
+
+The GUI supports light and dark display themes; click the theme toggle
+button in the top-right corner of the main window to switch. The following
+steps describe a typical recording session.
+
+\begin{itemize}
+
+    \item \textbf{If recording does not start or restart correctly.}
+    Click \textbf{STOP} in the GUI, then power-cycle the peripheral
+    system (Intan RHS2116\,+\,nRF52832) completely. After the BLE connection
+    re-establishes (LED2 on the central DK lights up), click \textbf{START}.
+    This is the most reliable recovery procedure for any unexpected state.
+
+    \item \textbf{Starting a recording.}
+    Ensure the J-Link is connected to the central DK. Click \textbf{START};
+    the GUI will open a new CSV file in a \texttt{neural\_data/} subdirectory
+    next to the script and begin displaying live data. BLE throughput and
+    packet loss statistics are shown in the top status bar.
+
+    \item \textbf{Channel switching artefacts.}
+    If channel traces appear swapped or offset relative to their expected
+    assignments, click \textbf{Resync Channels}. This sends a synchronisation
+    command sequence to the peripheral firmware to reinitialise the
+    channel-to-data-stream mapping. The recording file is not closed, but
+    the peripheral suspends SPI acquisition during the sequence
+    (approximately 300\,ms), so samples from that window are absent from
+    the data. Recording resumes automatically into the same file once the
+    sequence completes.
+    See also Section~\ref{sec:gui} in Methods for the confirmed causes of
+    channel switching.
+
+    \item \textbf{Stopping a recording.}
+    Click \textbf{STOP}. The recording file is closed and the GUI loads the
+    recorded data from the CSV for post-recording inspection.
+
+    \item \textbf{Pausing the live plot.}
+    Click \textbf{PAUSE PLOT} to freeze the display while recording continues
+    in the background. The button label changes to \textbf{RESUME PLOT}.
+    Click it again to return to live scrolling.
+
+    \item \textbf{Navigating when the plot is paused.}
+    While the plot is paused the status bar reads
+    ``\textit{plot paused -- box zoom active}''.
+    Mouse interaction changes as follows:
+    \begin{itemize}
+        \item \textbf{Left mouse drag:} moves the data (pans the view
+        left/right and up/down).
+        \item \textbf{Right mouse drag:} zooms -- click, hold, and drag
+        to scale the view in or out around the cursor position.
+    \end{itemize}
+    Channel X-axes are also unlinked in this mode, so each channel can be
+    navigated independently.
+
+    \item \textbf{Reset Zoom.}
+    The \textbf{Reset Zoom} button re-enables auto-range for all channels
+    simultaneously, fitting every channel to its full data extent.
+    A small reload icon (\raisebox{0pt}{$\circlearrowleft$}) in the
+    top-right corner of each individual plot panel resets the zoom for that
+    channel only.
+
+    \item \textbf{Sync X (post-recording view).}
+    The \textbf{Sync X} toggle button becomes active only after a recording
+    is stopped and the data are loaded. When enabled, all channel plots share
+    the same horizontal axis, so panning one channel pans all channels
+    simultaneously. When disabled, each channel can be scrolled independently.
+
+    \item \textbf{Window size.}
+    The \textbf{Window} spin box (row 1, next to PAUSE PLOT) sets the time
+    span of the live display in milliseconds. The range is 1--30\,000\,ms;
+    the default is 4\,000\,ms (4\,s). Changing this value during a live
+    recording takes effect immediately.
+
+    \item \textbf{DS -- display downsampling.}
+    The \textbf{DS} spin box (row~1) sets a display-only downsampling factor
+    from 1 (no downsampling, default) to~16. Data are always recorded at the
+    configured sampling rate regardless of the DS setting; downsampling only
+    reduces the number of points rendered per screen update.
+
+    \item \textbf{Plot height.}
+    The \textbf{Plot height} slider (row~2) adjusts the vertical height of
+    each channel panel between 60 and 600 pixels (default 150\,px). All
+    channels resize together.
+
+    \item \textbf{Channel selection, sampling rate, and bandwidth.}
+    Row~3 of the control bar provides per-channel checkboxes (Ch01--Ch16),
+    a sampling rate spin box, and an upper-bandwidth selector.
+    \begin{itemize}
+        \item Deselecting channels removes them from the display and reduces
+        the total BLE throughput requirement, allowing higher per-channel
+        rates. The maximum achievable rate for a given channel count is
+        limited by the total BLE data rate ($n \times f_\text{ch} \le
+        32\,\text{kSa/s}$) and the maximum SPI clock (128\,kHz for
+        $n \ge 2$); the GUI enforces these limits automatically and shows
+        the current maximum next to the rate selector.
+        \item The \textbf{Upper BW} drop-down automatically pre-selects
+        the highest Intan RHS2116 upper-bandwidth setting that does not
+        exceed the Nyquist frequency ($f_\text{Nyquist} = f_\text{ch}/2$)
+        and marks it with ``$\checkmark$ auto''. Bandwidth options above
+        the Nyquist frequency are flagged with ``$\triangle$ aliasing'' as
+        a warning.
+    \end{itemize}
+
+\end{itemize}
+
+\paragraph{Stimulation Controls.}
+The stimulation window (Figure~\ref{fig:stim_gui}) is opened by clicking the
+\textbf{STIMULATION} button in the main recording window.
+\textbf{Stimulation requires an active recording}: clicking
+\textbf{START STIM} before recording has been started displays a
+``Start recording first!'' warning and does nothing.
+When stimulation is active, the live display is suspended and data
+continue to accumulate in the background; the display resumes automatically
+when stimulation ends.
+
+\subparagraph{Global Parameters} (upper panel, apply equally to all channels):
+\begin{itemize}
+    \item \textbf{Step size}: current step resolution of the Intan RHS2116
+    stimulation DAC. Options range from 10\,nA to 10\,\textmu{}A (default
+    2\,\textmu{}A). A finer step gives better amplitude resolution but a lower
+    maximum current; a coarser step increases the maximum current at the cost
+    of resolution.
+
+    \item \textbf{Cat amp / Ano amp}: global default cathodic and anodic
+    amplitudes (0--2550\,\textmu{}A each, default 100\,\textmu{}A). Changing
+    either value propagates to all per-channel rows simultaneously; individual
+    channels can be adjusted independently afterwards.
+
+    \item \textbf{Cat PW / Ano PW}: cathodic and anodic pulse widths
+    (10--10\,000\,\textmu{}s each, default 200\,\textmu{}s). Global-only;
+    apply identically to all enabled channels. All pulse widths are quantised
+    to multiples of 8\,\textmu{}s by the firmware.
+
+    \item \textbf{Interphase}: delay between the cathodic and anodic phases
+    (0--10\,000\,\textmu{}s, default 0\,\textmu{}s).
+
+    \item \textbf{Frequency}: stimulation repetition rate
+    (0.1--1000\,Hz, default 400\,Hz).
+
+    \item \textbf{Num pulses} and \textbf{Duration}: total number of biphasic
+    pulses and the corresponding stimulation duration. These two fields are
+    linked:
+    \begin{equation*}
+        \text{Duration} = \frac{\text{Num\,pulses}}{\text{Frequency}}
+    \end{equation*}
+    Changing Num pulses automatically updates Duration, and vice versa.
+    Frequency can be changed independently without modifying either.
+    Default: 10 pulses, 1\,s at 400\,Hz.
+\end{itemize}
+
+\subparagraph{Per-Channel Parameters} (lower scrollable panel):
+Each of the 16 channel rows contains:
+\begin{itemize}
+    \item \textbf{Enable checkbox}: if unchecked, the channel is excluded from
+    the stimulation run and its waveform preview goes blank.
+
+    \item \textbf{Cat amp / Ano amp}: per-channel cathodic and anodic
+    amplitudes, adjustable independently of every other channel and of the
+    global defaults above.
+
+    \item \textbf{Waveform preview}: live display of the biphasic pulse for
+    this channel, updated on every parameter change.
+
+    \item \textbf{Charge indicator}: charge delivered per phase
+    (nC\,=\,amplitude\,\texttimes\,pulse\,width\,/\,1000).
+\end{itemize}
+
+The top of the per-channel panel provides additional display controls:
+\begin{itemize}
+    \item \textbf{Show checkboxes} (Ch01--Ch16) and \textbf{All} button:
+    hide or restore individual channel rows. Hidden channels are still
+    stimulated if their enable checkbox is checked.
+    \item \textbf{Window}: waveform preview time span (1--10\,000\,ms,
+    default 20\,ms).
+    \item \textbf{Lock Y-axis}: forces all waveform previews to share the
+    same vertical scale, set to the largest amplitude among enabled channels.
+\end{itemize}

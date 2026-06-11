@@ -1,12 +1,18 @@
 \section{Introduction}
 
-Surface electrode arrays placed on neural tissue record local field
-potentials (LFPs), reflecting the aggregate synaptic activity of the
-underlying neuronal population. When applied to the cerebral cortex
-this modality is termed electrocorticography (ECoG); the present system
-is developed with implantation on the rat spinal cord as the primary
-target application, with the hardware and firmware architecture equally
-applicable to other surface recording scenarios.
+Surface electrode arrays placed on neural tissue record the local field
+potential (LFP) --- the low-frequency component of the extracellular
+potential arising from the superposition of transmembrane currents of
+the underlying neuronal population~\cite{buzsaki2012origin}. Synaptic
+currents are the dominant contributor: excitatory inputs drive an influx
+of Na\textsuperscript{+} and Ca\textsuperscript{2+} ions into the
+postsynaptic cell, creating an extracellular current sink whose return
+currents through the surrounding tissue give rise to the measured
+potential. When such recordings are made from the cortical surface this
+modality is termed electrocorticography (ECoG); the present system
+targets implantation on the rat spinal cord as the primary application,
+with the hardware and firmware architecture equally applicable to other
+surface recording scenarios.
 
 Compared to scalp EEG, surface electrodes are in much closer proximity
 to the target tissue, substantially reducing spatial averaging: the
@@ -27,13 +33,13 @@ therefore achieve high sensitivity, with the ability to faithfully resolve
 signals in the range of tens of microvolts at high signal-to-noise ratio.
 
 LFP signals contain frequency components up to approximately
-300\,Hz~\cite{reimann2013biophysically}, which by the Nyquist--Shannon
+300\,Hz~\cite{reimann2013biophysically, thielen2023making}, which by the Nyquist--Shannon
 sampling theorem~\cite{shannon1949} requires a minimum sampling rate
 of 600\,Hz per channel. In practice, sampling at the theoretical minimum
-introduces reconstruction artefacts and leaves no margin for anti-aliasing
-filter roll-off. A sampling rate of 2\,kHz per channel was therefore
-chosen, providing more than three times the Nyquist rate and ensuring
-high-fidelity waveform reconstruction.
+leaves insufficient margin for clean waveform reconstruction. A sampling
+rate of 2\,kHz per channel was therefore chosen, providing more than
+three times the Nyquist rate and ensuring high-fidelity waveform
+reconstruction.
 
 Beyond sufficient sampling rate, temporal regularity of the acquired
 samples is critical. Standard spectral analysis methods such as the
