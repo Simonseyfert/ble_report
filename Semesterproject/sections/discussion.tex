@@ -1,4 +1,5 @@
 \section{Discussion}
+\label{sec:discussion}
 
 \subsection{Electromagnetic Interference in the WPT Field}
 
@@ -10,7 +11,8 @@ minimally and the system would likely support useful neural recordings. However,
 interference grows rapidly with proximity, and inside the coil the amplifier input
 saturates entirely. The direct on-chip measurement --- shorting a channel with no
 carrier board wiring --- reduced the interference to $\pm20$--$30$\,\textmu{}V
-even inside the coil, a three- to four-fold improvement. This confirms that the
+even inside the coil --- an approximately 200-fold reduction relative to the
+$-6000$ to $+4000$\,\textmu{}V saturation observed with the carrier board. This confirms that the
 carrier board wiring, rather than the WPT field acting directly on the silicon, is
 the dominant pickup path: long external wires form inductive loops and act as
 antennas in the alternating magnetic field.
@@ -69,24 +71,37 @@ sampling rate configurations with no packet loss.
 \subsection{Limitations}
 
 The carrier board used throughout this work is not representative of a final
-implantable form factor. All measurements of interference and power consumption
-reflect a bench-top assembly with long external wires, which as discussed above
-is the dominant source of WPT-induced noise. Power measurements were made at room
+implantable form factor. Most interference measurements reflect a bench-top
+assembly with long external wires, which as discussed above is the dominant
+source of WPT-induced noise. The exception is the direct on-chip measurement
+(channel shorted at the Intan die, without the carrier board), which already
+demonstrated a $\approx$200-fold interference reduction and establishes a lower
+bound on what a co-integrated PCB solution would achieve. Power measurements were made at room
 temperature; thermal effects under implanted conditions have not been characterised.
 The prototype flex PCB co-integrating the nRF52832 and Intan RHS2116 was
 non-functional in its current revision, and neural recording with the most compact
-hardware configuration could not be demonstrated. All signal recording was
-validated using a function generator input rather than real neural signals from
-electrodes.
+hardware configuration could not be demonstrated. Signal recording was validated using a function generator as the input source:
+a known-frequency, known-amplitude sinusoid is the appropriate reference for
+verifying end-to-end firmware correctness and BLE pipeline integrity, as it
+allows unambiguous comparison of transmitted and received waveforms. Validation
+with real neural signals from electrodes --- first in vitro, then in vivo ---
+is the natural next step but lies outside the scope of firmware development.
 
 \subsection{Future Directions}
 
-The immediate next step is PCB co-integration of the nRF52832 and Intan RHS2116
-on a single substrate with short, shielded SPI traces, eliminating the carrier
-board wiring that currently dominates WPT interference. Beyond this, the PCB
-should be realised as a microfabricated device on a thin-film substrate compatible
-with implantable electrode arrays, combining the recording and stimulation
-electronics with the electrode interface in a compact, biocompatible form factor.
+PCB co-integration of the nRF52832 and Intan RHS2116 on a single substrate has
+already been prototyped in the flex PCB described in Section~\ref{sec:results_noise}:
+the two ICs are placed in close proximity with short inter-chip traces, directly
+addressing the carrier board wiring that currently dominates WPT interference.
+The immediate next step is therefore to correct the hardware fault in the current
+revision (non-functional on-board oscillator) and characterise the flex PCB inside
+the WPT field, which is expected to yield interference levels close to the
+$\pm20$--$30$\,\textmu{}V already achieved in the direct on-chip measurement.
+Beyond this, the design should be realised as a microfabricated device on a
+thin-film substrate compatible with implantable electrode arrays, combining the
+recording and stimulation electronics, the electrode interface, and the WPT
+receiver components (RX coil, rectifier, and voltage regulation) in a single
+compact, biocompatible assembly.
 Validation should then proceed first in vitro --- confirming signal integrity and
 noise performance in a controlled environment without biological variability ---
 before advancing to in vivo implantation studies to assess chronic performance

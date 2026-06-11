@@ -419,14 +419,15 @@ as described in Section~\ref{sec:results_noise}.
         \caption{Flex PCB co-integrating nRF52832 and Intan RHS2116}
     \end{subfigure}
     \caption{Miniaturization progression toward an integrated neural recording module.
-    (a) SparkFun nRF52832 Breakout board, used for initial development.
-    (b) Custom QFN48 nRF52832 module.
-    (c) Custom WLCSP49 nRF52832 module (most compact standalone module).
+    (a) SparkFun nRF52832 Breakout board, used for initial development (50$\times$16\,mm).
+    (b) Custom QFN48 nRF52832 module (29$\times$17\,mm).
+    (c) Custom WLCSP49 nRF52832 module, most compact standalone module (29$\times$17\,mm).
     (a)--(c) run identical firmware and each interface with the Intan RHS2116 via an
     external carrier board (see Figure~\ref{fig:wiring_connector}).
     (d) Prototype flex PCB co-integrating the nRF52832 and Intan RHS2116 on the same
-    substrate, with an on-board square-wave oscillator switchable to Intan input pin~0,
-    intended for calibration signal injection in the wireless power transfer field
+    substrate (non-rectangular outline, bounding box $\approx$39$\times$29\,mm), with an
+    on-board square-wave oscillator switchable to Intan input pin~0, intended for
+    calibration signal injection in the wireless power transfer field
     (see Section~\ref{sec:results_noise}).}
     \label{fig:miniaturization}
 \end{figure}
@@ -664,14 +665,24 @@ the next SoftDevice ISR fires, since the minimum inter-ISR gap is 183\,\textmu{}
 After the critical section, \texttt{samples\_done} samples are copied from the
 inactive buffer into the ring buffer. Each 4-byte DMA entry contains the full
 SPI reply frame; only bytes 0--1, which carry the AC recording data in big-endian
-format, are extracted --- bytes 2--3 are discarded. In multi-channel mode, only
-only samples whose channel index has its corresponding bit set in
-\texttt{g\_channel\_mask} --- a 16-bit bitmask in which bit~$n$ enables
-channel~$n$, configured by the GUI at recording start --- are forwarded; the
-running variable \texttt{g\_channel\_phase} tracks which physical channel each
-DMA slot corresponds to across buffer boundaries, since the \texttt{CONVERT(63)}
-cycle does not reset at buffer swap boundaries. In single-channel mode, all
-samples are copied directly. The ring buffer holds \texttt{RING\_BUF\_SAMPLES}
+format, are extracted --- bytes 2--3 are discarded. Channel indices throughout this work are 0-based (channels 0--15).
+In multi-channel mode, the \texttt{CONVERT(63)} command causes the Intan
+RHS2116 to cycle through all 16 physical channels in the fixed order
+$0, 1, 2, \ldots, 15, 0, 1, \ldots$ --- DMA slots therefore arrive in this
+strict round-robin sequence. Only samples whose channel index has its
+corresponding bit set in \texttt{g\_channel\_mask} --- a 16-bit bitmask in
+which bit~$n$ enables channel~$n$, configured by the GUI at recording start
+--- are written to the ring buffer; the enabled channels appear in the same
+cyclic order (e.g.\ ch\,0, ch\,7, ch\,0, ch\,7, \ldots\ for the default two-channel mask).
+The running variable \texttt{g\_channel\_phase} tracks which channel in this
+cycle each DMA slot corresponds to across buffer boundaries, since the
+\texttt{CONVERT(63)} cycle does not reset at buffer swap boundaries.
+Because each BLE packet carries exactly 112 samples and 112 is not in general
+an integer multiple of the number of active channels $N_\text{ch}$,
+consecutive packets do not all start at the same channel: the starting
+channel advances by $112 \bmod N_\text{ch}$ positions from one packet to the
+next. This matters for packet-loss recovery, as described below.
+In single-channel mode, all samples are copied directly. The ring buffer holds \texttt{RING\_BUF\_SAMPLES}
 $= 6144$ samples (12\,288\,bytes at 2\,bytes per sample), with read and write
 indices maintained as byte offsets with modular wrap-around. At the maximum SPI
 transaction rate of 32\,kHz (all 16 channels at 2\,kHz each), the buffer holds
@@ -979,33 +990,29 @@ sweep used a consistent supply voltage to ensure comparability.
 
 \subsection{Central Firmware}
 
-The central nRF52832 DK operates in the BLE central role, scanning for
-peripherals advertising the NUS service UUID. The scanner is configured to
-connect automatically upon finding a matching device
-(\texttt{connect\_if\_match = true}) and restarts automatically on both scan
-timeout and on disconnect, ensuring the central reconnects without manual
-intervention whenever the peripheral becomes available.
-
-Upon connection, GATT service discovery is triggered immediately via
-\texttt{ble\_db\_discovery\_start()}. Once the NUS characteristics are
-discovered, \texttt{ble\_nus\_c\_handles\_assign()} assigns the client handles
-and \texttt{ble\_nus\_c\_tx\_notif\_enable()} subscribes to TX notifications
-from the peripheral. The central then operates entirely event-driven.
+The central nRF52832 DK operates in the BLE central role. The scanning and
+connection management code follows the standard Nordic SDK NUS central example:
+the scanner connects automatically upon finding a peripheral advertising the
+NUS service UUID, subscribes to TX notifications, and reconnects autonomously
+on disconnect or scan timeout, requiring no manual intervention.
 
 \paragraph{Packet Reassembly and RTT Forwarding.}
-Incoming BLE notification fragments are handled in
-\texttt{ble\_nus\_chars\_received\_uart\_print()}. Because the 226-byte
-\texttt{ecog\_packet} may arrive fragmented across multiple ATT payloads
-depending on the negotiated MTU, fragments are accumulated in a 226-byte
-staging buffer. Fragments that would exceed the buffer are silently dropped.
-Once exactly 226 bytes have been accumulated, the completed packet is
-serialised into a 232-byte binary frame and written to RTT channel~0 via
+Because a 226-byte ECoG packet may arrive fragmented across multiple BLE
+notification payloads (depending on the negotiated ATT MTU), fragments are
+accumulated in a staging buffer until exactly 226 bytes have been received.
+Binary encoding is used rather than ASCII to keep the frame compact: the 112
+two-byte sample values occupy 224 bytes as binary, compared to up to 672 bytes
+as formatted decimal strings. The completed packet is serialised into a
+232-byte binary frame and written to RTT channel~0 via
 \texttt{SEGGER\_RTT\_Write()}:
 
 \begin{itemize}
     \item Bytes 0--5: synchronisation header (\texttt{0xAA 0x55} repeated
-    three times);
-    \item Bytes 6--229: $112 \times 2$-byte sample values in big-endian order;
+    three times) --- the alternating-bit pattern is highly distinctive and
+    unlikely to appear in neural signal data, allowing the GUI to reliably
+    locate frame boundaries in the raw RTT byte stream;
+    \item Bytes 6--229: $112 \times 2$-byte sample values in big-endian order
+    (most significant byte first);
     \item Bytes 230--231: packet counter (big-endian \texttt{uint16\_t}).
 \end{itemize}
 
@@ -1021,15 +1028,23 @@ only a power cycle resets it.
 
 The GUI initialises \texttt{last\_counter} to \texttt{None} at the start of each
 recording session. On each received frame the expected counter value is
-$(\texttt{last\_counter} + 1) \bmod 65536$; if the received value differs, the
-estimated number of lost packets is
+$(\texttt{last\_counter} + 1) \bmod 65536$; modular arithmetic is required
+because the 16-bit counter wraps from 65535 back to~0. If the received value
+differs, the estimated number of lost packets is
 $\texttt{lost} = (\texttt{counter\_raw} - \texttt{expected}) \bmod 65536$.
-A threshold of $\texttt{lost} < 65534$ excludes the degenerate cases where the
-counter appears to have moved backward by one or two steps, which cannot occur
-under normal monotonic operation and would indicate a spurious condition. When
-genuine loss is detected, the cumulative loss counter is incremented and the
-channel interleaving phase is corrected: \texttt{ch\_phase} is advanced by
-$112 \times \texttt{lost}$ modulo the active channel count, maintaining correct
+A threshold of $\texttt{lost} < 65534$ excludes two specific degenerate cases
+arising from modular arithmetic: a counter that has moved backward by one step
+(impossible under normal monotonic operation) would yield
+$\texttt{lost} = 65535$ ($= {-1} \bmod 65536$), and backward by two steps
+would yield $\texttt{lost} = 65534$. Values at or above this threshold are
+therefore treated as spurious rather than genuine loss. When genuine loss is detected, the cumulative loss counter is incremented and
+the channel interleaving phase is corrected. Because each packet carries 112
+samples and 112 may not be divisible by $N_\text{ch}$, the channel at which a
+packet starts advances by $112 \bmod N_\text{ch}$ positions per packet. If
+\texttt{lost} packets are missing, the channel assignment at the start of the
+next received packet has shifted by $112 \times \texttt{lost}$ positions from
+what was expected; \texttt{ch\_phase} is therefore advanced by
+$112 \times \texttt{lost} \bmod N_\text{ch}$, maintaining correct
 sample-to-channel assignment for all subsequent packets.
 
 After a peripheral power cycle, \texttt{packet\_counter} resets to zero on reboot.
@@ -1048,20 +1063,39 @@ disconnected are silently discarded. Two categories of recognised commands
 are forwarded to the peripheral via \texttt{ble\_nus\_c\_string\_send()}:
 
 \begin{itemize}
-    \item \textbf{Binary packets}: C packets (35\,bytes), S packets (9\,bytes),
-    and R packets (7\,bytes) are identified by their leading byte and exact
-    length, and forwarded as raw bytes without modification. On receipt of an
-    R packet, the reassembly buffer is additionally reset, since the
-    recording configuration change will restart acquisition on the peripheral
-    and any partially assembled packet would be stale.
+    \item \textbf{Binary packets}: three command types are identified by their
+    leading byte and exact length and forwarded without modification:
+    \begin{itemize}
+        \item \textbf{C packet (35\,bytes)} --- per-channel stimulation
+        amplitude. Byte~0: \texttt{'C'}. Bytes~1--2: 16-bit channel-enable
+        mask (little-endian; bit~$n$ enables channel~$n$). Bytes~3--34:
+        cathodic and anodic DAC values for each of the 16 channels, packed as
+        consecutive byte pairs (cathodic then anodic), one pair per channel.
+        \item \textbf{S packet (9\,bytes)} --- stimulation timing; receipt
+        immediately triggers stimulation. Byte~0: \texttt{'S'}. Bytes~1--2:
+        cathodic pulse width~(\textmu s). Bytes~3--4: anodic pulse
+        width~(\textmu s). Bytes~5--6: interphase delay~(\textmu s).
+        Bytes~7--8: stimulation frequency~(Hz). All multi-byte fields are
+        little-endian \texttt{uint16\_t}.
+        \item \textbf{R packet (7\,bytes)} --- recording reconfiguration;
+        restarts acquisition on the peripheral with new settings. Byte~0:
+        \texttt{'R'}. Bytes~1--2: channel mask. Bytes~3--4: per-channel
+        sampling rate~(Hz). Bytes~5--6: bandwidth setting~(Hz).
+        The central additionally resets the packet reassembly buffer on
+        receipt, since any partially assembled packet from the previous
+        configuration would be stale.
+    \end{itemize}
     \item \textbf{Text commands}: \texttt{STIM\_START}, \texttt{STIM\_STOP},
-    \texttt{START}, and \texttt{STOP} are matched by substring search and
-    forwarded as newline-terminated strings.
+    \texttt{START}, and \texttt{STOP} are forwarded as newline-terminated
+    strings. These commands carry no numerical payload --- a keyword is
+    sufficient --- so plain text is used for simplicity and debuggability.
+    Matching is by substring search (the keyword is accepted anywhere within
+    the received string), unlike binary packets which require an exact leading
+    byte and exact length. Binary encoding is used for the C, S, and R packets
+    precisely because they carry structured multi-byte numerical data (DAC
+    values, frequencies, pulse widths) that would be verbose and error-prone
+    to encode as ASCII strings.
 \end{itemize}
-
-UART is initialised in the central firmware but its event handler is empty
-and unused; all communication with the host computer is performed exclusively
-via RTT over the J-Link USB interface.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1070,9 +1104,9 @@ via RTT over the J-Link USB interface.
 
 The Python-based GUI communicates with the central DK via RTT over the J-Link
 USB interface using the \texttt{pylink-square} library. It runs two concurrent
-threads: a background daemon thread reads RTT data continuously and parses
-incoming frames, while the main Qt thread handles all UI rendering and user
-interaction. Communication between threads is handled via PyQt5 signals
+threads: a background daemon thread (one that terminates automatically when the
+main program exits) reads RTT data continuously and parses incoming frames,
+while the main Qt thread handles all UI rendering and user interaction. Communication between threads is handled via PyQt5 signals
 (\texttt{pyqtSignal}) to ensure thread safety.
 
 \paragraph{Frame Synchronisation and Packet Parsing.}
@@ -1111,8 +1145,7 @@ per-channel pan and zoom.
 
 \paragraph{Stimulation Interface.}
 A dedicated stimulation dialog (accessible via the \texttt{STIMULATION} button)
-exposes the full set of stimulation parameters: current step size (10\,nA to
-10\,\textmu A, ten discrete options), per-channel cathodic and anodic amplitude,
+exposes the full set of stimulation parameters: per-channel cathodic and anodic amplitude (in \textmu A),
 cathodic and anodic pulse width, interphase delay, stimulation frequency, and
 total number of pulses. Each channel row displays a live waveform preview and a
 per-channel charge balance indicator showing cathodic and anodic charge in pC
@@ -1120,27 +1153,45 @@ and the percentage imbalance. Recording is suspended during stimulation to
 prevent amplifier saturation from the stimulation artefact; the peripheral
 resumes recording automatically once stimulation ends.
 
+Amplitude resolution is determined by the Intan RHS2116 current-step size,
+which is set by hardware register~34.  The current implementation fixes the
+step size at the power-on default of 2\,\textmu A, giving an effective range
+of 2--510\,\textmu A in 2\,\textmu A increments.  Full automatic step-size
+selection --- which would expose the complete 10\,nA--10\,\textmu A range ---
+would require the C~packet to carry the register-34 value and a corresponding
+firmware update on the peripheral to write that register before stimulation
+begins; this is a straightforward extension left for a future release.
+
 \paragraph{Channel Resynchronisation.}
 Under normal operating conditions with a stable power supply, no channel
 desynchronisation was observed during continuous operation. Occasional
-desynchronisation occurred only when the supply voltage was near the minimum
-threshold required to power on the system. The confirmed cause is CS line noise:
-a spurious CS pulse causes the Intan RHS2116 to advance its internal channel
-counter by one extra step, after which all subsequent channel assignments are
-permanently offset by a constant amount (the offset is identical across all
-channels). A \texttt{Resync Channels} button recovers correct alignment by
-triggering a brief zero-amplitude stimulation sequence, which empirically resets
-the Intan's channel cycling state.
+desynchronisation was observed only when the supply voltage was at the minimum
+threshold required to power on the system. Two independent mechanisms can
+produce it: (1)~noise on the CS line --- a spurious CS pulse causes the Intan
+RHS2116 to advance its internal channel counter by one extra step, permanently
+offsetting all subsequent channel assignments by a constant amount (identical
+across all channels); (2)~insufficient supply voltage causing unreliable logic
+levels on the SPI bus generally. These are distinct failure modes: low supply
+voltage does not necessarily cause CS noise, and CS noise can occur
+independently. In either case, if SPI signalling is compromised, data integrity
+cannot be assumed regardless of the sampling command used --- switching to
+\texttt{CONVERT($k$)} direct-address commands would not recover reliable
+samples if the underlying electrical conditions are faulty. Channel
+desynchronisation should therefore be treated as a symptom of a more
+fundamental operating problem --- not a firmware defect --- and investigated
+accordingly. This issue is expected to be eliminated when the Intan and
+nRF52832 are collocated on the same PCB with short SPI traces, since the
+long wires between separate boards in the current prototype are the likely
+source of both noise susceptibility and marginal signal integrity.
 
-Importantly, a supply voltage low enough to produce spurious CS pulses will also
-corrupt the SPI data lines; even substituting \texttt{CONVERT($k$)} direct-address
-commands would not yield reliable samples under such conditions. Channel
-desynchronisation is therefore a symptom of operation outside the specified supply
-range rather than a firmware defect. Should channel drift be suspected, shorting
-one recording channel to GND provides a fixed-amplitude reference that makes any
-constant channel offset immediately visible, since all channels shift by the same
-amount. This issue is expected to be eliminated when the Intan and nRF52832 are
-collocated on the same PCB with short, shielded SPI traces.
+A \texttt{Resync Channels} button recovers correct channel alignment by
+triggering a brief zero-amplitude stimulation sequence, which empirically
+resets the Intan's internal channel cycling state. Should a channel shift be
+suspected, shorting one recording channel to GND provides a fixed-amplitude
+reference that makes any constant offset immediately visible, since all
+channels shift by the same amount. The presence of a channel offset is,
+however, an indicator of incorrect operating conditions and should prompt
+investigation rather than simply be corrected and ignored.
 
 Pre-built executables for Windows, macOS, and Linux are available as release
 artefacts on the project repository
@@ -1148,7 +1199,7 @@ artefacts on the project repository
 \href{mailto:simon.seyfert@epfl.ch}{simon.seyfert@epfl.ch} or
 \href{mailto:simon.seyfert@tum.de}{simon.seyfert@tum.de}),
 generated via automated GitHub Actions workflows; the Python source is also
-available for direct execution. A detailed usage guide is provided in
+available for direct execution and modification. A detailed usage guide is provided in
 Appendix~\ref{app:gui_guide} and on the repository.
 
 

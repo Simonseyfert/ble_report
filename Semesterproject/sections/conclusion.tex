@@ -26,14 +26,20 @@ wireless power transfer, using the compact WLCSP49 nRF52832 module
 ($3.0 \times 3.2$\,mm) with no wired power supply. Electromagnetic interference measurements
 inside the WPT transmitter coil field revealed that carrier board wiring --- rather
 than the WPT field acting directly on the silicon --- is the dominant noise pickup
-mechanism: shorting a channel directly on the Intan die reduced interference more
-than three-fold compared to the carrier board configuration. This finding clarifies
-the path forward: PCB co-integration of the nRF52832 and Intan RHS2116 on a single
-substrate with short, shielded traces is the critical next step toward WPT
-compatibility, rather than a fundamental redesign of the wireless architecture.
+mechanism: shorting a channel directly on the Intan die reduced interference
+approximately 200-fold (two orders of magnitude) compared to the carrier board
+configuration. This finding clarifies the path forward: PCB co-integration of the
+nRF52832 and Intan RHS2116 on a single substrate with short, shielded traces is the
+key step toward WPT compatibility, rather than a fundamental redesign of the wireless
+architecture.
 
-The immediate next step is the realisation of this co-integrated PCB, followed by
-microfabrication on a thin-film substrate compatible with implantable surface electrode
-arrays. Validation should then proceed first in vitro, confirming signal integrity and
-noise performance in a controlled environment, before advancing to chronic in vivo
-implantation in the rat spinal cord model for which this system was designed.
+This co-integration has already been prototyped in the flex PCB described in this
+work; the immediate next step is to correct the hardware fault in the current revision
+(non-functional on-board oscillator) and characterise the flex PCB inside the WPT
+field. Beyond this, the design should be realised as a microfabricated device on a
+thin-film substrate, combining the recording and stimulation electronics, the electrode
+interface, and the WPT receiver components (RX coil, rectifier, and voltage regulation)
+in a single compact, biocompatible assembly. Validation should then proceed first in
+vitro, confirming signal integrity and noise performance in a controlled environment,
+before advancing to chronic in vivo implantation in the rat spinal cord model for which
+this system was designed.

@@ -1,4 +1,5 @@
 \section{Results}
+\label{sec:results}
 
 The system was successfully implemented and validated across all major functional blocks:
 hardware-driven neural signal acquisition across a configurable selection of 1--16 channels,
@@ -43,7 +44,8 @@ limit of the LFP band targeted by the system~\cite{reimann2013biophysically}
 and was chosen specifically to demonstrate faithful reconstruction of the
 highest-frequency LFP components of interest. The 1\,mV amplitude is well
 within the
-$\pm5$\,mV input range of the amplifier. Two configurations were tested:
+$\pm5$\,mV input range of the amplifier. A range of channel-count and sampling-rate combinations was characterised;
+two representative configurations are presented here:
 16 channels at 2\,kHz per channel (the default operating point) and 8 channels
 at 4\,kHz per channel (higher temporal resolution at reduced channel count).
 
@@ -89,22 +91,24 @@ continuous recording sessions. The rolling 16-bit packet counter and the
 GUI's per-packet loss detection (described in Section~\ref{sec:methods}) allow
 any deviations from this baseline to be detected and quantified in real time.
 After a power interruption and subsequent reconnection, throughput recovers to
-its maximum value within approximately 2--3\,s; packets received during this
-ramp-up period should be discarded (see Section~\ref{sec:results_noise}).
+its maximum value within approximately 2--3\,s; data acquired during this
+ramp-up period are saved but should be discarded in post-processing
+(see Section~\ref{sec:results_noise}).
 
 \subsection{Stimulation Waveform Validation}
 \label{sec:results_stim}
 
-Charge-balanced biphasic stimulation was validated on the bench using an
-oscilloscope to verify the waveform shape and amplitude. Figure~\ref{fig:stim_osc}
+Charge-balanced biphasic stimulation was validated on the bench using a
+Tektronix DPO2024 Digital Phosphor Oscilloscope~\cite{tektronix_dpo2024}
+to verify the waveform shape and amplitude. Figure~\ref{fig:stim_osc}
 shows simultaneous stimulation on two channels. Both channels use equal cathodic
 and anodic pulse widths of 400\,\textmu{}s with an interphase delay of
 approximately 25\,\textmu{}s. The two channels operate at different amplitudes:
-the upper trace (blue) carries approximately half the current of the lower trace
+the upper trace (blue) carries half the current of the lower trace
 (yellow), demonstrating independent per-channel amplitude control. The waveforms
 are charge-balanced and the biphasic shape is clearly resolved. The low-level
-noise visible on the traces originates from the bench measurement setup, not from
-the firmware or stimulation hardware.
+noise visible on the traces originates from the bench measurement setup, not
+from the firmware.
 
 Figure~\ref{fig:stim_gui} shows the stimulation control window used to configure
 and trigger the stimulation sequence.
@@ -124,8 +128,8 @@ and trigger the stimulation sequence.
     \centering
     \includegraphics[width=\textwidth]{figures/stimulation_gui.png}
     \caption{Stimulation control window of the Python GUI. Global parameters
-    (step size, pulse widths, interphase delay, frequency, number of pulses) are
-    configured in the upper panel; per-channel enable and amplitude are set
+    (cathodic and anodic pulse widths, interphase delay, frequency, number of pulses)
+    are configured in the upper panel; per-channel enable and amplitude are set
     individually in the lower rows. Each channel row displays a live waveform
     preview and a charge balance indicator.}
     \label{fig:stim_gui}
@@ -231,11 +235,13 @@ reflecting the combined cost of copying the inactive DMA buffer into the ring bu
 and assembling and transmitting the BLE packets.
 
 The 40\,ms zoomed window (bottom) resolves the BLE connection-event structure.
-Five peaks appear at 10\,ms intervals, confirming the empirically negotiated
-connection interval. Each event shows a double-peak structure: a smaller peak
-($\approx$15\,mA, 54\,mW) followed approximately 1.5\,ms later by a larger peak
-($\approx$19\,mA, 68\,mW), consistent with the sequential radio interrupts within
-a single connection event described in Appendix~\ref{app:softdevice_timing}.
+Five peaks appear at 10\,ms intervals, empirically confirming that connection
+events occur at 10\,ms --- consistent with the connection interval reported by
+the SoftDevice connection-established callback during development. Each event
+shows a double-peak structure: a smaller peak ($\approx$15\,mA, 54\,mW)
+followed approximately 1.5\,ms later by a larger peak ($\approx$19\,mA, 68\,mW),
+consistent with the sequential radio interrupts within a single connection event
+described in Appendix~\ref{app:softdevice_timing}.
 
 \begin{figure}[h]
     \centering
@@ -265,10 +271,13 @@ configurations, with a measured ratio $P(3.0\,\text{V})\,/\,P(3.6\,\text{V})
 = 0.765 \pm 0.006$ (mean\,$\pm$\,std). The spread is below $1\,\%$,
 confirming that the scaling is essentially configuration-independent.
 The ratio falls between the predictions of a purely LDO-dominated model
-($R = 0.833$, $P \propto V$) and a purely dynamic-switching-dominated model
-($R = 0.694$, $P \propto V^2$), consistent with an effective power-law exponent
-$\alpha \approx 1.47$. The full derivation and comparison figure are provided
-in Appendix~\ref{app:power_voltage}.
+($R = 0.833$, $P \propto V$; excess supply voltage dissipated as heat in a
+linear regulator) and a purely dynamic-switching-dominated model
+($R = 0.694$, $P \propto V^2$; CMOS switching losses scale as $CV^2\!f$),
+consistent with an effective power-law exponent $\alpha \approx 1.47$,
+indicating roughly equal contributions from both mechanisms. The full
+derivation and comparison figure are provided in
+Appendix~\ref{app:power_voltage}.
 
 \subsubsection*{Measurement Repeatability}
 
@@ -290,7 +299,10 @@ plots for the two runs are provided in Appendix~\ref{app:power_repeat}.
 \label{sec:results_noise}
 
 The primary motivation for progressively miniaturising the peripheral module was
-compatibility with wireless power delivery. Using the WPT system developed in
+physical size: the target application is the rat spinal cord, which imposes strict
+volume and weight constraints on any implanted device. A secondary but equally
+important motivation is compatibility with wireless power delivery, which requires
+the entire module to fit within the receiver coil footprint. Using the WPT system developed in
 parallel within the lab (developed by Marta), the complete peripheral --- nRF52832 and
 Intan RHS2116 --- was operated with no wired power supply. This represents the
 most significant system-level result of this work: the full wireless architecture
@@ -305,16 +317,20 @@ outside the transmitter coil field, the 300\,Hz sinusoidal test signal was
 successfully acquired and transmitted over BLE, confirming end-to-end operation
 under wireless power. Following a momentary power interruption and automatic
 reconnection, BLE throughput recovered to its maximum value within approximately
-2--3\,s; data acquired during this ramp-up period are unreliable and should be
-discarded.
+2--3\,s; data acquired during this ramp-up period are saved but should be
+discarded in post-processing.
 
 \subsubsection*{Interference with Carrier Board in the WPT Field}
 
-When the Intan RHS2116 on its carrier board was placed inside the transmitter coil
-field, the 300\,Hz sinusoidal input was no longer recoverable. The most likely
-mechanism is that the long external wires connecting the function generator to the
-carrier board act as antennas and form inductive pickup loops in the alternating
-magnetic field of the WPT transmitter.
+A key goal of the WPT integration was to eliminate the long cables running from
+the bench-top function generator to the carrier board: in a freely moving animal
+these cables are not an option, and even on the bench they represent a potential
+interference path. When the Intan RHS2116 on its carrier board was placed inside
+the transmitter coil field, the 300\,Hz sinusoidal input was no longer recoverable.
+Two coupled mechanisms contribute: (1)~the long external wires from the function
+generator to the carrier board act as antennas, and (2)~the carrier board's own
+traces and wiring loops form inductive pickup paths in the alternating magnetic
+field of the WPT transmitter --- even without external cables attached.
 
 To characterise the interference quantitatively without the confound of the input
 signal, channel~7 was shorted to GND on the carrier board (nearest recording channel
@@ -365,7 +381,9 @@ $+4000$\,\textmu{}V --- well beyond the $\pm5$\,mV input range of the RHS2116.
 
 Shorting channel~0 directly on the Intan RHS2116 die, bypassing the carrier board
 and its wiring, reduced the interference to $\pm20$--$30$\,\textmu{}V
-(Figure~\ref{fig:shorted_on_intan}). This three-to-four-fold reduction confirms
+(Figure~\ref{fig:shorted_on_intan}) --- a reduction of approximately 200-fold
+relative to the $-6000$ to $+4000$\,\textmu{}V saturation observed with the
+carrier board inside the coil. This two-orders-of-magnitude improvement confirms
 that the carrier board wiring --- rather than the chip itself or the WPT field
 acting directly on the silicon --- is the dominant pickup path. The residual
 $\pm20$--$30$\,\textmu{}V reflects hand-soldered connections still forming small
