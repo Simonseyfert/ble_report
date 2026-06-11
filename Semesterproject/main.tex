@@ -123,20 +123,18 @@ decisive next step toward WPT compatibility.
 %\newpage
 
 \null
-\thispagestyle{empty}
-
-%\newpage
-
+\pagestyle{empty}
+\setcounter{tocdepth}{2}
 \tableofcontents
 
 \newpage
 
 \null
-\thispagestyle{empty}
 
 \newpage
 
 
+\pagestyle{plain}
 \pagenumbering{arabic}
 
 \input{sections/introduction}
@@ -160,8 +158,10 @@ decisive next step toward WPT compatibility.
 \newpage
 
 \addcontentsline{toc}{section}{References}
+\pagestyle{empty}
 \printbibliography
 \newpage
+\pagestyle{plain}
 
 \input{sections/supplementary_material}
 

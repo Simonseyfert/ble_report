@@ -489,11 +489,14 @@ Timer1 \texttt{COMPARE0} & \texttt{GPIOTE OUT[0]}     & Assert CS low (toggle) \
 \end{table}
 
 SPI is a synchronous serial protocol in which one device, the master (here the
-nRF52832 via SPIM0), drives the clock and initiates every transaction, while the
-other, the slave (here the Intan RHS2116), responds only when addressed. The
-chip-select (CS) line is an active-low signal that the master holds low for the
-duration of each transaction, signalling to the slave that it should respond;
-returning it high ends the transaction. GPIOTE (General-Purpose I/O Tasks
+nRF52832 via SPIM0), drives the clock (SCLK) and initiates every transaction,
+while the other, the slave (here the Intan RHS2116), responds only when
+addressed. The chip-select (CS) line is an active-low signal that the master
+holds low for the duration of each transaction, signalling to the slave that it
+should respond; returning it high ends the transaction. Data flows
+simultaneously in both directions: MOSI (Master Out Slave In) carries the
+command word from the nRF52832 to the Intan, while MISO (Master In Slave Out)
+carries the ADC sample back --- both clocked by SCLK. GPIOTE (General-Purpose I/O Tasks
 and Events) is the nRF52832's hardware module that exposes GPIO pin state changes
 as tasks and events within the PPI network, enabling pin toggling to be triggered
 by hardware without CPU involvement. GPIOTE channel~0 is configured in toggle mode

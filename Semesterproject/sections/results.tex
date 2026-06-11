@@ -115,10 +115,10 @@ and trigger the stimulation sequence.
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.7\textwidth]{figures/oscilloscope_two_channels_stim.jpg}
+    \includegraphics[width=0.8\textwidth]{figures/oscilloscope_two_channels_stim.jpg}
     \caption{Oscilloscope trace of simultaneous two-channel biphasic stimulation.
     Both channels: 400\,\textmu{}s cathodic phase, 400\,\textmu{}s anodic phase,
-    $\approx$25\,\textmu{}s interphase delay. The upper channel (blue) has
+    $\approx 25$\,\textmu{}s interphase delay. The upper channel (blue) has
     approximately half the amplitude of the lower channel (yellow), demonstrating
     independent per-channel amplitude control.}
     \label{fig:stim_osc}
@@ -238,8 +238,8 @@ The 40\,ms zoomed window (bottom) resolves the BLE connection-event structure.
 Five peaks appear at 10\,ms intervals, empirically confirming that connection
 events occur at 10\,ms --- consistent with the connection interval reported by
 the SoftDevice connection-established callback during development. Each event
-shows a double-peak structure: a smaller peak ($\approx$15\,mA, 54\,mW)
-followed approximately 1.5\,ms later by a larger peak ($\approx$19\,mA, 68\,mW),
+shows a double-peak structure: a smaller peak ($\approx 15$\,mA, 54\,mW)
+followed approximately 1.5\,ms later by a larger peak ($\approx 19$\,mA, 68\,mW),
 consistent with the sequential radio interrupts within a single connection event
 described in Appendix~\ref{app:softdevice_timing}.
 
@@ -249,7 +249,7 @@ described in Appendix~\ref{app:softdevice_timing}.
     \caption{Power consumption time course for the 1-channel, 2\,kHz per channel
     configuration at 3.6\,V (Intan RHS2116\,+\,WLCSP49 nRF52832 module).
     \textit{Top:} full 2.866\,s trace showing eight periodic DMA buffer-swap spikes
-    (peak $\approx$97\,mW) with an interval of approximately 400\,ms, consistent
+    (peak $\approx 97$\,mW) with an interval of approximately 400\,ms, consistent
     with the Timer2 threshold period of $819 \times 500\,\mu\text{s} = 409.5\,\text{ms}$.
     The shaded region indicates the zoomed segment.
     \textit{Bottom:} 40\,ms zoom revealing BLE connection events at the negotiated
@@ -303,7 +303,7 @@ physical size: the target application is the rat spinal cord, which imposes stri
 volume and weight constraints on any implanted device. A secondary but equally
 important motivation is compatibility with wireless power delivery, which requires
 the entire module to fit within the receiver coil footprint. Using the WPT system developed in
-parallel within the lab (developed by Marta), the complete peripheral --- nRF52832 and
+parallel within the lab (developed by Marta Vasconcelos), the complete peripheral --- nRF52832 and
 Intan RHS2116 --- was operated with no wired power supply. This represents the
 most significant system-level result of this work: the full wireless architecture
 (wireless power \emph{and} wireless data) was validated end-to-end for the first
@@ -355,7 +355,7 @@ $+4000$\,\textmu{}V --- well beyond the $\pm5$\,mV input range of the RHS2116.
     \caption{GND-shorted channel~7 at three distances from the WPT transmitter
     coil. \textit{(a)}~30\,cm: peak-to-peak excursions mostly within
     $\pm10$\,\textmu{}V, with occasional peaks at $\pm15$\,\textmu{}V
-    ($\approx$2$\times$ the amplifier noise floor).
+    ($\approx 2\times$ the amplifier noise floor).
     \textit{(b)}~4\,cm: interference reaches $+50$ to $+60$\,\textmu{}V and
     occasionally $-90$\,\textmu{}V.
     \textit{(c)}~Inside the coil: the amplifier input is fully saturated,
