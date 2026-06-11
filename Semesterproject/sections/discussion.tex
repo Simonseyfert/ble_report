@@ -7,8 +7,7 @@
 At 30\,cm from the transmitter coil, the recorded noise on a GND-shorted channel
 is typically within $\pm10$\,\textmu{}V (20\,\textmu{}V$_\text{pp}$), only
 marginally above the amplifier's intrinsic noise floor of
-$\approx15.8$\,\textmu{}V$_\text{pp}$. At this distance the WPT field contributes
-minimally and the system would likely support useful neural recordings. However,
+$\approx15.8$\,\textmu{}V$_\text{pp}$. However,
 interference grows rapidly with proximity, and inside the coil the amplifier input
 saturates entirely. The direct on-chip measurement --- shorting a channel with no
 carrier board wiring --- reduced the interference to $\pm20$--$30$\,\textmu{}V
@@ -35,8 +34,7 @@ simultaneously increasing the channel count 16-fold. Two architectural changes
 account for this. First, replacing the CPU polling loop with a PPI/EasyDMA
 acquisition pipeline allows the processor to remain in low-power sleep between
 BLE connection events rather than spinning continuously; the power timecourse data
-confirm this, showing a low baseline current punctuated only by the periodic
-connection event peaks. Second, removal of the UART peripheral --- which was used
+confirm this. Second, removal of the UART peripheral --- which was used
 in the prior implementation to forward data to the computer --- eliminates a
 further source of continuous power draw.
 
@@ -81,12 +79,9 @@ bound on what a co-integrated PCB solution would achieve. Power measurements wer
 temperature; thermal effects under implanted conditions have not been characterised.
 The prototype flex PCB co-integrating the nRF52832 and Intan RHS2116 was
 non-functional in its current revision, and neural recording with the most compact
-hardware configuration could not be demonstrated. Signal recording was validated using a function generator as the input source:
-a known-frequency, known-amplitude sinusoid is the appropriate reference for
-verifying end-to-end firmware correctness and BLE pipeline integrity, as it
-allows unambiguous comparison of transmitted and received waveforms. Validation
-with real neural signals from electrodes --- first in vitro, then in vivo ---
-is the natural next step but lies outside the scope of firmware development.
+hardware configuration could not be demonstrated. Signal recording was validated using a function generator input; validation
+with real neural signals from electrodes lies outside the scope of firmware
+development.
 
 \subsection{Future Directions}
 
@@ -103,10 +98,6 @@ thin-film substrate compatible with implantable electrode arrays, combining the
 recording and stimulation electronics, the electrode interface, and the WPT
 receiver components (RX coil, rectifier, and voltage regulation) in a single
 compact, biocompatible assembly.
-Validation should then proceed first in vitro --- confirming signal integrity and
-noise performance in a controlled environment without biological variability ---
-before advancing to in vivo implantation studies to assess chronic performance
-and tissue compatibility.
 
 A separate firmware-level extension worth exploring is support for the full 32 channels
 available on the headstage, which carries two Intan RHS2116 chips. The present firmware
