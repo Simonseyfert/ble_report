@@ -6,11 +6,10 @@ demonstrated the BLE communication pipeline, achieving 2\,kHz sampling on a sing
 via a CPU-polling loop. This approach had a fundamental limitation: the Nordic SoftDevice
 preempts the application at every BLE connection event (every 10\,ms at the
 empirically negotiated connection interval; the firmware-configured range is
-7.5--10\,ms), occupying interrupt priority levels 0, 1, and~4; since application
-code is restricted to the remaining priority levels, the SoftDevice can always
-preempt application tasks. For a peripheral connection event transmitting two to
+7.5--10\,ms), preempting application code at the highest available interrupt priority levels; application
+tasks cannot block it. For a peripheral connection event transmitting two to
 three data packets, as required by the throughput demands of this system, the total
-preemption time per connection event is approximately 400--500\,\textmu{}s (see
+preemption time per connection event is typically approximately 400--500\,\textmu{}s (see
 Appendix~\ref{app:softdevice_timing}) \cite[Table~36]{nordic_s132_sds_v72},
 occurring every 10\,ms. In the prior
 CPU-polling approach, this preemption directly interrupted the SPI acquisition loop,
@@ -21,19 +20,12 @@ demonstrated without real SPI data.
 
 The present work addresses these limitations by replacing the CPU-polling loop with a
 fully hardware-driven acquisition pipeline (PPI and EasyDMA), decoupling data acquisition
-almost entirely from CPU availability. The system supports a configurable selection of 1--16
-channels with adjustable per-channel sampling rates, charge-balanced biphasic electrical
-stimulation with per-channel amplitude and timing control, and a configurable upper
-amplifier bandwidth~$f_H$. Recording configuration and state are persisted to non-volatile
-flash memory and automatically restored upon reconnection following a power loss. As a
-safety measure, any active stimulation is halted immediately upon BLE connection loss.
-The peripheral firmware was additionally validated on a compact nRF52832 module powered
-by a wireless power transfer system developed in parallel within the lab, demonstrating
-end-to-end operation without a wired power supply.
+almost entirely from CPU availability. The design and implementation are described in
+the subsections that follow.
 
 \subsection{System Architecture Overview}
 
-The wireless neural recording and stimulation system comprises four main components: (1) an Intan RHS2116 neural recording and stimulation chip interfaced via Serial Peripheral Interface (SPI) communication; (2) a Nordic nRF52832 microcontroller acting as the BLE peripheral, responsible for bidirectional communication with the Intan chip and wireless data transmission; (3) a second nRF52832 acting as the BLE central, which communicates with the peripheral; and (4) a Python-based Graphical User Interface (GUI) running on a host computer for real-time visualization, control (including stimulation parameters), and data storage. 
+The wireless neural recording and stimulation system comprises four main components: (1) an Intan RHS2116 neural recording and stimulation chip interfaced via Serial Peripheral Interface (SPI, a wired synchronous serial protocol); (2) a Nordic nRF52832 microcontroller acting as the BLE peripheral, responsible for bidirectional communication with the Intan chip and wireless data transmission; (3) a second nRF52832 acting as the BLE central, which communicates wirelessly with the peripheral; and (4) a Python-based Graphical User Interface (GUI) running on a host computer for real-time visualization, control (including stimulation parameters), and data storage. 
 
 \begin{figure}[h]
     \centering
@@ -46,29 +38,32 @@ The wireless neural recording and stimulation system comprises four main compone
     \textit{Image sources: Intan RHS2116~\cite{intan_user_guide}; 
     nRF52832 Development Kit (DK)~\cite{nordic_dk_farnell};
     Bluetooth logo~\cite{bluetooth_svg_wikipedia}; 
-    laptop icon made by Vectors Market from Flaticon~\cite{flaticon_laptop}.}}
+    laptop icon~\cite{flaticon_laptop}.}}
     \label{fig:system_overview}
 \end{figure}
 
-Data flow proceeds as follows. In recording mode, the peripheral drives the Intan chip to continuously sample neural signals via SPI. Acquired samples are written directly to an active DMA buffer without CPU involvement, using the nRF52832's EasyDMA peripheral in list mode. When the active buffer approaches capacity (at approximately 80\% full), the CPU swaps the two DMA lists and resets the write pointer, allowing acquisition to continue uninterrupted into the previously inactive buffer. The data in the now-inactive buffer is then copied into a larger ring buffer, from which the CPU assembles structured packets for BLE transmission to the central. The central receives the packets and forwards them to the host computer via SEGGER Real-Time Transfer (RTT), a high-speed debug channel provided by the J-Link interface. The GUI parses the RTT data stream and renders voltage traces in real time.
+Data flow proceeds as follows. In recording mode, the peripheral drives the Intan chip to continuously sample neural signals via SPI. Acquired samples are written directly to an active Direct Memory Access (DMA) buffer without CPU involvement, using the nRF52832's EasyDMA peripheral in list mode. When the active buffer approaches capacity (at approximately 80\% full), the CPU swaps the two DMA lists and resets the write pointer, allowing acquisition to continue uninterrupted into the previously inactive buffer. The data in the now-inactive buffer is then copied into a larger ring buffer, from which the CPU assembles structured packets for BLE transmission to the central. The central receives the packets and forwards them to the host computer via SEGGER Real-Time Transfer (RTT), a high-speed debug channel provided by the J-Link interface. The GUI parses the RTT data stream and renders voltage traces in real time.
 
 The nRF52832 was chosen over comparable alternatives --- in particular the nRF52840,
 which adds more RAM (256\,KB vs.\ 64\,KB), USB, and a higher maximum TX power --- on
 the basis of size and power. The nRF52832 is available in a WLCSP49 package measuring
 only $2.956 \times 3.226$\,mm, while the nRF52840's smallest package (WLCSP) measures
-$3.544 \times 3.607$\,mm --- approximately 34\,\% larger by area. For an implantable
-system targeting the rat spinal cord, this difference is significant.
-On power, the nRF52832 draws approximately 5.3\,mA during BLE transmission at 0\,dBm,
-compared to approximately 6.5\,mA for the nRF52840 --- a roughly 23\,\% increase for no
-functional benefit in this application. The nRF52832 provides all required capabilities:
+$3.544 \times 3.607$\,mm~\cite{nordic_nrf52840_ps} --- approximately 34\,\% larger by area.
+On power, the nRF52832 draws approximately 5.3\,mA during BLE transmission at
+0\,dBm with the DC/DC regulator enabled~\cite{nordic_nrf52832_pb}, compared to
+approximately 6.4\,mA for the nRF52840 under the same
+conditions~\cite{nordic_nrf52840_ps} --- a roughly 21\,\% increase.
+Since the nRF52840 offers no functional advantage for this application --- neither
+its additional RAM (256\,KB vs.\ 64\,KB), USB, nor its extended radio features
+(Bluetooth Long Range, Direction Finding, Thread, Zigbee) are required --- the
+nRF52832 is the clear choice: smaller, lower-power, and fully sufficient. The nRF52832 provides all required capabilities:
 sufficient flash (512\,KB) and RAM (64\,KB) for the firmware, the PPI and EasyDMA
 peripherals central to the acquisition pipeline, three independent SPIM and SPIS
 instances, and BLE 5.0. No feature of the nRF52840 is required by the present design.
 
-Both nRF52832 nodes were operated as Development Kits (DKs) --- evaluation boards with
-an integrated SEGGER J-Link debugger --- rather than more compact modules, to facilitate
-firmware debugging through their integrated J-Link interfaces and direct
-Real-Time Transfer (RTT) communication throughout development.
+Firmware was initially developed on nRF52832 Development Kits (DKs); once stable,
+it was also deployed to more compact modules, as described in
+Section~\ref{sec:miniaturization}.
 
 
 \begin{comment}
@@ -82,6 +77,15 @@ For the firmware development, the nrf52832 development kits (DKs) were used as t
 
 \subsubsection{Neural Recording/Stimulation Chip --- Intan RHS2116}
 \label{sec:hardware_intan}
+
+SPI (Serial Peripheral Interface) is a synchronous serial protocol in which one device,
+the master (here the nRF52832), drives the clock (SCLK) and initiates every transaction,
+while the other, the slave (here the Intan RHS2116), responds only when addressed.
+Data flows simultaneously in both directions: MOSI (Master Out Slave In) carries the
+command word from master to slave, while MISO (Master In Slave Out) returns the
+response --- both clocked by SCLK. A chip-select (CS) line, asserted low by the master
+for the duration of each transaction, identifies the intended slave and gates its
+response.
 
 The Intan RHS2116 is a 16-channel bidirectional neural interface chip combining
 per-channel amplification, analog-to-digital conversion, and current-mode
@@ -126,8 +130,9 @@ The initialisation sequence follows the example procedure in the RHS2116
 datasheet~\cite{intan_rhs2116_datasheet} (pp.~44--45). The lower amplifier bandwidth is
 fixed at $f_L = 5$\,Hz, appropriate for LFP recording. The only notable deviation is
 that the upper bandwidth~$f_H$ is not configured during initialisation; it is instead
-written at every acquisition start via \texttt{rhs\_set\_bandwidth()}, enabling runtime
-selection from the GUI (see Section~\ref{sec:ppi_acquisition}).
+written at every acquisition start via \texttt{rhs\_set\_bandwidth()}, enabling the
+upper bandwidth to be adjusted from the GUI based on the configured sampling rate
+(see Section~\ref{sec:ppi_acquisition}).
 
 \paragraph{Recording Configuration and Channel Selection.}
 For continuous multi-channel recording, the chip is driven with a
@@ -135,27 +140,44 @@ For continuous multi-channel recording, the chip is driven with a
 RHS2116 to multiplex through all 16 channels in order, advancing to the next channel
 on each successive SPI transaction~\cite{intan_rhs2116_datasheet}. This allows the
 peripheral to send a single fixed 32-bit command word on every transaction, with the
-chip handling channel cycling internally. Because the same word repeats indefinitely,
-no SPI TX command buffer is required: the nRF52832 drives MOSI with a fixed pattern
-via DMA, avoiding the need to maintain and synchronise a 16-entry cyclic command
-sequence --- a non-trivial concern when the DMA could restart mid-cycle at an arbitrary
-channel position. Only samples from logically selected channels (configured via a
+chip handling channel cycling internally. This property is the key enabler of the
+hardware-driven acquisition architecture: because the PPI subsystem triggers SPI
+transactions at a fixed rate independent of CPU state, requiring only a single repeated
+command allows the firmware to delegate the entire transaction sequence to hardware
+without tracking channel state in software. Because the same word repeats indefinitely,
+no SPI TX command buffer is required: the nRF52832 drives MOSI with a single fixed
+32-bit word that DMA repeats automatically. Without \texttt{CONVERT(63)}'s
+auto-sequencing, a TX command buffer of one word per DMA transfer would be needed ---
+equal in size to the RX sample buffer --- and firmware would additionally need to
+track the current channel offset across DMA list switches to re-phase the cyclic
+\texttt{CONVERT(0..15)} sequence correctly, a non-trivial synchronisation concern
+absent from the present design. Only samples from logically selected channels (configured via a
 16-bit bitmask from the GUI) are forwarded to the receive buffer
 (Section~\ref{sec:ppi_acquisition}); the remaining samples are discarded in firmware.
 Because \texttt{CONVERT(63)} always cycles all 16 physical channels regardless of how
 many are selected, the per-channel sampling rate is always the total SPI transaction
-rate divided by 16 in this mode. For single-channel operation, a dedicated mode issues
-\texttt{CONVERT($k$)} directly, bypassing this constraint. The achievable per-channel
-rates for each configuration and the resulting BLE throughput are discussed in
-Section~\ref{sec:results_ble}.
+rate divided by 16 in this mode. For example, recording 8 channels at 4\,kHz per
+channel still requires $16 \times 4\,\text{kHz} = 64\,\text{kHz}$ total SPI
+transactions per second --- twice as many as for 16 channels at 2\,kHz each. The
+total SPI transaction rate is subject to a hardware ceiling (quantified in
+Section~\ref{sec:ppi_acquisition}): the timer period must be long enough for each
+32-bit transaction to complete before the next one fires. For higher per-channel rates
+with fewer active channels, a dedicated single-channel mode issues
+\texttt{CONVERT($k$)} directly, bypassing the 16-cycle overhead: recording one channel
+at 32\,kHz requires only 32\,kHz SPI transactions per second, whereas
+\texttt{CONVERT(63)} would demand $16 \times 32\,\text{kHz} = 512\,\text{kHz}$ ---
+not achievable in practice. The
+achievable per-channel rates for each configuration and the resulting BLE throughput
+are discussed in Section~\ref{sec:results_ble}.
 
 \paragraph{Power Supply.}
 The \texttt{VSTIM} power supply pins must never be left floating, as this causes
 excessive power dissipation~\cite[p.~24]{intan_rhs2116_datasheet}. When stimulation is not in
 use, \texttt{VSTIM+} can be tied to \texttt{VDD} and \texttt{VSTIM-} to ground. When
-stimulation is active, a bipolar supply is required: a minimum of $+3.3$\,V on
-\texttt{VSTIM+} and $-3.3$\,V on \texttt{VSTIM-}, with the total supply
-(\texttt{VSTIM+} $-$ \texttt{VSTIM-}) not exceeding 14\,V. In the bench-top test
+stimulation is active, a bipolar supply is required: \texttt{VSTIM+} must be in the
+range $+3.3$\,V to $+10.7$\,V with respect to ground, \texttt{VSTIM-} in the range
+$-3.3$\,V to $-10.7$\,V, and the total supply (\texttt{VSTIM+} $-$ \texttt{VSTIM-})
+must not exceed 14\,V~\cite{intan_rhs2116_datasheet}. In the bench-top test
 configuration, $\pm5$\,V was provided by a signal generator with a common ground
 reference, giving a total of 10\,V and remaining within the 14\,V limit with comfortable
 margin.
@@ -300,9 +322,7 @@ region of flash and RAM, and operates at the highest available interrupt priorit
 levels (0, 1, and~4), preempting application code at every scheduled BLE radio
 event (every connection interval of approximately 10\,ms). The implications of
 this preemption for hardware-driven acquisition timing are discussed in
-Appendix~\ref{app:softdevice_timing}. Timer~0 is reserved by the SoftDevice and
-unavailable to application code; Timers~1--4 are used by the application for SPI
-sampling and stimulation control.
+Appendix~\ref{app:softdevice_timing}. Timer~0 is reserved by the SoftDevice and unavailable to application code.
 
 During firmware development, both the peripheral and central were operated as
 nRF52832 Development Kits (DKs). The DK's integrated SEGGER J-Link debugger
@@ -310,9 +330,7 @@ enables both real-time debugging via RTT and direct firmware flashing without
 additional hardware --- in contrast to standalone modules, which require an
 external J-Link connection as described in Appendix~\ref{app:flash_ndk}. The
 peripheral was subsequently miniaturized through a progression of smaller
-modules, as described in Section~\ref{sec:miniaturization}. The central DK
-remains powered from the host computer's USB port to eliminate noise from
-external power adapters. Software requirements for running the system and
+modules, as described in Section~\ref{sec:miniaturization}. Software requirements for running the system and
 for firmware development are listed in Appendices~\ref{app:software_run}
 and~\ref{app:software_dev} respectively.
 
@@ -328,7 +346,7 @@ board~\cite{sparkfun_nrf52832}, which provides accessible pin headers and a USB
 port for power supply (USB does not support firmware flashing or debugging on
 this board; see Appendix~\ref{app:flash_ndk} for the flashing procedure), while being significantly more
 compact. The subsequent two stages used custom nRF52832 modules designed by
-Ivan Furfaro (LSBI, EPFL), stripped down to only the components required for
+Ivan Furfaro, stripped down to only the components required for
 operation and firmware flashing: two LEDs and the
 necessary programming pins, with no buttons or other peripherals. The final
 step further reduces the nRF52832 chip itself from the QFN48
@@ -407,8 +425,7 @@ generator (NTi Minirator MR2/MR-PRO~\cite{nti_minirator_mr2} or Keysight
 carrier board connector (one terminal to the electrode input, the other to
 GND/REF). Throughout bench testing the RHS2116 REF input was shorted to GND:
 without a tissue reference electrode present, this provides a stable 0\,V
-reference for the on-chip differential amplifiers and prevents the floating REF
-pin from acting as an antenna for environmental interference.
+reference for the on-chip differential amplifiers.
 With the green carrier board and the function generator cables far from
 the transmitter coil, the recorded sine wave was clean. As the assembly was moved
 progressively closer to the transmitter, the signal became increasingly corrupted
@@ -427,17 +444,17 @@ selected as it is the nearest accessible recording channel to the GND and REF pi
 on the carrier board connector (Figure~\ref{fig:connector_pinout}). The headstage
 used here carries two RHS2116 chips (channels~1--16 on one chip, channels~17--32 on
 the other); only one chip was interfaced via SPI, making channels~1--16 the
-accessible set, of which channel~7 lies closest to the GND and REF connector pins. A GND-shorted channel
-should ideally produce a flat zero signal; any deviation from zero represents
-interference pickup directly. Measurements were made at three positions relative to
+accessible set. A GND-shorted channel ideally produces only the amplifier's intrinsic
+noise floor; any signal substantially above this floor represents interference pickup. Measurements were made at three positions relative to
 the transmitter coil: 30\,cm (reference baseline), 4\,cm from the coil edge, and
 fully inside the coil, in all cases with the carrier board and its wiring in place.
 Results from these measurements are presented in Section~\ref{sec:results_noise}.
 
-To assess the contribution of the carrier board wiring specifically, a second
-measurement was made with channel~0 shorted directly on the Intan RHS2116 die,
-bypassing the carrier board connector entirely and minimising the effective antenna
-length and pickup loop area.
+The carrier-board measurements inside the WPT field revealed severe
+saturation-level interference (Section~\ref{sec:results_noise}). To assess how much
+of this originates from the board wiring rather than from the chip or the WPT field
+acting directly on the silicon, a second measurement was made with channel~1 shorted
+directly on the Intan RHS2116 die, bypassing the carrier board connector entirely.
 
 Finally, the prototype flex PCB (Figure~\ref{fig:miniaturization}d), which
 integrates an on-board square-wave oscillator switchable to Intan input pin~0, was
@@ -465,11 +482,13 @@ directly, without CPU involvement in each SPI transaction.\footnote{All firmware
 \url{https://github.com/Simonseyfert/ble_spi_intan} (private repository;
 access available upon request at \href{mailto:simon.seyfert@epfl.ch}{simon.seyfert@epfl.ch}
 or \href{mailto:simon.seyfert@tum.de}{simon.seyfert@tum.de}).}
-The SPI master (SPIM0) is operated in EasyDMA list mode, where received bytes are
-written directly to a memory buffer by the DMA engine.
+The SPI master peripheral (SPIM0) is operated in EasyDMA list mode, where received
+bytes are written directly to a memory buffer by the DMA engine --- without any
+CPU involvement.
 
-Four PPI channels are allocated once in \texttt{sampling\_event\_init()} and
-enabled at the start of each acquisition, as summarised in
+Four PPI channels coordinate all hardware-driven acquisition events --- SPI
+triggering, chip-select control, and transaction counting --- entirely without CPU
+involvement, and are enabled at the start of each acquisition, as summarised in
 Table~\ref{tab:ppi_channels}.
 
 \begin{table}[htbp]
@@ -488,63 +507,37 @@ Timer1 \texttt{COMPARE0} & \texttt{GPIOTE OUT[0]}     & Assert CS low (toggle) \
 \end{tabular}
 \end{table}
 
-SPI is a synchronous serial protocol in which one device, the master (here the
-nRF52832 via SPIM0), drives the clock (SCLK) and initiates every transaction,
-while the other, the slave (here the Intan RHS2116), responds only when
-addressed. The chip-select (CS) line is an active-low signal that the master
-holds low for the duration of each transaction, signalling to the slave that it
-should respond; returning it high ends the transaction. Data flows
-simultaneously in both directions: MOSI (Master Out Slave In) carries the
-command word from the nRF52832 to the Intan, while MISO (Master In Slave Out)
-carries the ADC sample back --- both clocked by SCLK. GPIOTE (General-Purpose I/O Tasks
-and Events) is the nRF52832's hardware module that exposes GPIO pin state changes
-as tasks and events within the PPI network, enabling pin toggling to be triggered
-by hardware without CPU involvement. GPIOTE channel~0 is configured in toggle mode
-(\texttt{GPIOTE\_CONFIG\_POLARITY\_Toggle}), initialised high. Both CS events target
-the same \texttt{GPIOTE OUT[0]} toggle task: the Timer1 \texttt{COMPARE0} event
-pulls CS low at the start of each transaction, and the \texttt{SPIM END} event
-releases it high at completion.
+GPIOTE (General-Purpose I/O Tasks and Events) is the nRF52832's hardware module
+that allows physical output pins to be driven high or low in response to internal
+hardware events --- such as a timer reaching a threshold or an SPI transaction
+completing --- without the CPU needing to execute any code.
+GPIOTE channel~0 is configured in toggle mode, starting high, to drive the CS line.
+Both CS events are routed to the same \texttt{GPIOTE OUT[0]} toggle output: the
+Timer1 \texttt{COMPARE0} event pulls CS low at the start of each transaction, and
+the \texttt{SPIM END} event releases it high at completion.
 
-Timer1 is configured as a 32-bit free-running timer with
-\texttt{SHORT\_COMPARE0\_CLEAR}, so it resets and restarts automatically on each
-compare event. Its period is set in \texttt{acquisition\_start()} by writing the
-\texttt{CC[0]} compare register directly with the required tick count. The
-nRF52832 timers run at 16\,MHz (prescaler\,0 means no clock division, so the full
-16\,MHz base clock is used), giving 1\,tick\,$=$\,62.5\,ns. In multi-channel mode,
-\texttt{CONVERT(63)} cycles through $N=16$ channels at a total SPI rate of $16f$
-transactions per second, where $f = \texttt{g\_rec\_rate\_hz}$ is the per-channel
-sampling rate. The required period is $1/(16f)$ seconds $= 10^6/(16f)\,\mu\text{s}$,
-which at 16\,ticks/\textmu s (the 16\,MHz clock yields exactly 16\,ticks per
-microsecond) amounts to $(10^6/(16f)) \times 16 = 10^6/f$ ticks ---
-the 16 channels and the 16\,ticks/\textmu s each contribute a factor of 16 that cancel.
-Rounded to the nearest integer:
+Timer1 runs continuously, resetting on each compare match. Its period is set at the
+start of each acquisition to produce the required inter-transaction interval. The
+nRF52832 timers run at 16\,MHz, giving a resolution of 62.5\,ns per tick.
+In multi-channel mode, \texttt{CONVERT(63)} cycles all 16 channels at a total SPI
+rate of $16f$ transactions per second, where $f$ is the per-channel sampling rate.
+A convenient coincidence simplifies the arithmetic: the factor of 16 from cycling
+all channels and the 16\,MHz clock rate (16\,ticks/\textmu s) cancel exactly,
+yielding:
 \begin{equation}
-    \texttt{CC[0]} =
-    \text{round}\!\left(\frac{1\,000\,000}{\texttt{g\_rec\_rate\_hz}}\right)
-    \;\text{ticks}
-    \;=\; \left\lfloor \frac{1\,000\,000 + \lfloor \texttt{g\_rec\_rate\_hz}/2 \rfloor}
-                      {\texttt{g\_rec\_rate\_hz}} \right\rfloor \;\text{ticks}
-    \label{eq:cc0_multi}
+    T_\text{ticks} = \mathrm{round}\!\left(\frac{1\,000\,000}{f}\right)
+    \label{eq:timer_period}
 \end{equation}
-where the right-hand expression is the standard integer rounding formula
-$\lfloor(a+\lfloor b/2\rfloor)/b\rfloor = \mathrm{round}(a/b)$, evaluable using
-only integer arithmetic.
-For example, at 2\,kHz per channel: \texttt{CC[0]}\,$=500$\,ticks\,$=31.25$\,\textmu s,
-producing a total SPI rate of 32\,kHz. In single-channel mode, \texttt{CONVERT($k$)}
-is issued directly; with only one channel the SPI fires at rate $f$ and the
-16-channel multiplier is absent, so the 16\,ticks/\textmu s no longer cancels
-and the required tick count is 16 times larger:
-\begin{equation}
-    \texttt{CC[0]} = \text{round}\!\left(\frac{16\,000\,000}{\texttt{g\_rec\_rate\_hz}}\right)
-    \;\text{ticks}
-    \label{eq:cc0_single}
-\end{equation}
-Timer2 is configured in counter mode, incrementing on each \texttt{SPIM END} event.
-When its count reaches a threshold of 819 transactions (80\,\% of
-\texttt{DMA\_BUF\_SAMPLES} $= 1024$), its \texttt{COMPARE0} fires a CPU interrupt
-service routine (ISR), \texttt{timer2\_count\_handler}, which pauses acquisition,
-swaps the active and inactive DMA buffers, and restarts acquisition; the handler is
-described in detail in the following section.
+where $f$ is in Hz and $T_\text{ticks}$ is the timer period in 16\,MHz ticks.
+For example, at $f = 2$\,kHz per channel: $T_\text{ticks} = 500$\,ticks\,$= 31.25$\,\textmu s,
+giving a total SPI rate of 32\,kHz. In single-channel mode, the factor of 16 does
+not cancel, giving $T_\text{ticks} = \mathrm{round}(16\,000\,000/f)$ ticks.
+
+Timer2 counts completed SPI transactions via the PPI link from each
+\texttt{SPIM END} event. When it reaches 819 (80\,\% of the 1024-slot DMA buffer
+capacity), it fires an interrupt that swaps the two DMA buffers, allowing
+acquisition to continue uninterrupted while the CPU processes the completed data;
+this is described in detail in the following section.
 
 \subsubsection{Double-Buffering and Ring Buffer}
 
@@ -555,9 +548,9 @@ buffer is aligned to its own size in memory (\texttt{\_\_attribute\_\_((aligned(
 The nRF52832 EasyDMA does not strictly require aligned buffers, but the alignment
 is applied as a precautionary measure to prevent potential data corruption from
 memory boundary crossing in EasyDMA list mode. The invariant is
-strict: the EasyDMA engine always writes exclusively to \texttt{active\_dma\_buffer},
-while the CPU always reads exclusively from \texttt{inactive\_dma\_buffer}. No
-buffer is ever accessed by both sides simultaneously.
+strict: the PPI and EasyDMA pipeline writes exclusively to the active buffer, while
+the CPU reads exclusively from the inactive buffer (copying samples to the ring
+buffer). No buffer is ever accessed by both sides simultaneously.
 
 When Timer2 reaches a threshold of 819 transactions (80\,\% of
 \texttt{DMA\_BUF\_SAMPLES}), the \texttt{timer2\_count\_handler} ISR fires. The
@@ -570,7 +563,7 @@ protocol ISRs --- so that nothing can preempt the code between \texttt{enter} an
 resumes Timer1 (restarting acquisition). Without this protection, an interrupt
 occurring after Timer1 is stopped but before it is restarted would extend the
 acquisition gap beyond ${\approx}250$\,ns, causing sample loss during that delay:
-\newpage
+
 \begin{lstlisting}[language=C]
 sd_nvic_critical_region_enter(&is_nested);
 nrf_drv_timer_pause(&timer1);
@@ -603,9 +596,9 @@ rate of 128\,kHz (8\,kHz per channel in multi-channel mode, reachable at any
 channel count since the SPI always fires at $16\times$ the per-channel rate), this
 gives a swap window of $205 \times 7.8125\;\mu\text{s} \approx 1.6\,\text{ms}$.
 The SoftDevice consumes at most 700\,\textmu{}s of CPU time per connection event
-(derived in Appendix~\ref{app:softdevice_timing}), but these ISRs do not execute
+(derived in Appendix~\ref{app:softdevice_timing}), but these SoftDevice ISRs do not execute
 consecutively --- they are separated by gaps of at least 183\,\textmu{}s during
-which \texttt{timer2\_count\_handler} can run. The worst-case delay before the
+which the buffer-swap interrupt can run. The worst-case delay before the
 handler executes is therefore 290\,\textmu{}s: the maximum duration of the longest
 single SoftDevice ISR (250\,\textmu{}s, PostProcessing) plus one immediately
 following $t_{\text{ISR}(4)}$ interrupt (40\,\textmu{}s). The 1.6\,ms swap window
@@ -616,114 +609,96 @@ the next SoftDevice ISR fires, since the minimum inter-ISR gap is 183\,\textmu{}
 
 After the critical section, \texttt{samples\_done} samples are copied from the
 inactive buffer into the ring buffer. Each 4-byte DMA entry contains the full
-SPI reply frame; only bytes 0--1, which carry the AC recording data in big-endian
-format, are extracted --- bytes 2--3 are discarded. Channel indices throughout this work are 0-based (channels 0--15).
-In multi-channel mode, the \texttt{CONVERT(63)} command causes the Intan
-RHS2116 to cycle through all 16 physical channels in the fixed order
-$0, 1, 2, \ldots, 15, 0, 1, \ldots$ --- DMA slots therefore arrive in this
-strict round-robin sequence. Only samples whose channel index has its
-corresponding bit set in \texttt{g\_channel\_mask} --- a 16-bit bitmask in
-which bit~$n$ enables channel~$n$, configured by the GUI at recording start
---- are written to the ring buffer; the enabled channels appear in the same
-cyclic order (e.g.\ ch\,0, ch\,7, ch\,0, ch\,7, \ldots\ for the default two-channel mask).
-The running variable \texttt{g\_channel\_phase} tracks which channel in this
-cycle each DMA slot corresponds to across buffer boundaries, since the
-\texttt{CONVERT(63)} cycle does not reset at buffer swap boundaries.
-Because each BLE packet carries exactly 112 samples and 112 is not in general
-an integer multiple of the number of active channels $N_\text{ch}$,
-consecutive packets do not all start at the same channel: the starting
-channel advances by $112 \bmod N_\text{ch}$ positions from one packet to the
-next. This matters for packet-loss recovery, as described below.
-In single-channel mode, all samples are copied directly. The ring buffer holds \texttt{RING\_BUF\_SAMPLES}
-$= 6144$ samples (12\,288\,bytes at 2\,bytes per sample), with read and write
-indices maintained as byte offsets with modular wrap-around. At the maximum SPI
-transaction rate of 32\,kHz (all 16 channels at 2\,kHz each), the buffer holds
-$6144/32\,000 \approx 192$\,ms of data, providing headroom to absorb
-approximately 19 missed BLE connection events (at a 10\,ms interval) before
-overflow.
+SPI reply frame; only bytes 0--1 carry the recording data --- bytes 2--3 are discarded.
 
-The ring buffer decouples the hardware-driven write side from the software-driven
-read side atomically: \texttt{timer2\_count\_handler} (interrupt context) holds
-exclusive ownership of \texttt{ring\_write\_idx}, while
-\texttt{send\_ble\_packets()} (main loop and BLE event context) holds exclusive
-ownership of \texttt{ring\_read\_idx}. On a single-core processor these two
-contexts cannot truly execute concurrently --- \texttt{timer2\_count\_handler}
-may interrupt \texttt{send\_ble\_packets()}, but each modifies only its own index
---- making the ring buffer a lock-free single-producer single-consumer queue
-requiring no explicit mutex. The \texttt{dma\_buf\_full} flag signals the main
-loop to restart the BLE send chain if it has stalled.
+Channels are numbered 1--16 throughout this report, matching the GUI convention;
+internally the firmware uses 0-based indices (0--15).
 
-\subsubsection{SPIM Initialisation and CS Control}
+In multi-channel mode, \texttt{CONVERT(63)} causes the Intan RHS2116 to cycle
+through all 16 physical channels in the repeating order
+$1, 2, 3, \ldots, 16, 1, 2, \ldots$, regardless of which channels are
+selected for recording. Only slots whose channel index is enabled in
+\texttt{g\_channel\_mask} --- a 16-bit bitmask with one bit per channel,
+configured by the GUI at recording start --- are written to the ring buffer;
+the selected channels repeat in the same cyclic order
+(e.g.\ ch\,1, ch\,5, ch\,9, ch\,1, ch\,5, ch\,9, \ldots\ for three selected channels).
 
-The SPIM0 peripheral transitions through several initialisation states across
-the recording and stimulation lifecycle, as the CS pin ownership switches between
-the driver and GPIOTE depending on the operating mode.
+Because the swap threshold (819 slots) is not a multiple of 16, the buffer
+boundary never aligns with the start of a channel cycle. For example, at the
+819-sample threshold the next DMA slot corresponds to channel~4 (since
+$819 \bmod 16 = 3$ in the firmware's 0-based indexing). The variable
+\texttt{g\_channel\_phase} records this offset and carries it forward across
+buffer swaps, so the CPU always knows which channel produced each slot without
+restarting from channel~1 on every swap.
+
+Because each BLE packet carries exactly 112 samples (see
+Section~\ref{sec:central_firmware} for the full packet format), packet boundaries
+do not generally align with the start of a channel cycle. The firmware therefore
+tracks the starting channel of each packet, enabling correct channel assignment
+when a packet is lost, as described below.
+In single-channel mode, all samples are copied directly. The ring buffer holds
+\texttt{RING\_BUF\_SAMPLES} $= 6144$ samples (12\,288\,bytes), with separate
+write (SPI acquisition) and read (BLE transmission) pointers. With all 16 channels
+selected at 2\,kHz each, 32\,000 selected samples arrive per second and the buffer
+holds $6144/32\,000 \approx 192$\,ms of data --- enough to absorb approximately 19
+missed BLE connection events (at a 10\,ms interval) before overflow.
+
+The ring buffer decouples hardware-driven SPI writes from software-driven BLE reads.
+The nRF52832 is single-core, so the interrupt handler (writer) and the main loop
+(reader) cannot run simultaneously: each side modifies only its own pointer, so no
+locking is needed.
+
+\subsubsection{SPI Peripheral Configuration and CS Control}
+
+The SPI peripheral is reconfigured at several points across the recording and
+stimulation lifecycle. In its base state, chip-select (CS) is controlled directly
+by the CPU via the Nordic SDK's SPI driver --- a software library that lets the
+firmware initiate and control individual SPI transactions. For hardware-driven
+acquisition and stimulation, CS control is transferred to GPIOTE, which toggles
+the pin in response to timer events without any CPU involvement.
 
 \paragraph{SPI Pin Assignment.}
-The four SPI signals are assigned in \texttt{sdk\_config.h}:
+The four SPI pins are assigned in \texttt{sdk\_config.h}:
 \texttt{SPI\_SCK\_PIN\,=\,28}, \texttt{SPI\_MOSI\_PIN\,=\,29},
 \texttt{SPI\_SS\_PIN\,=\,30} (\texttt{SS}\,$\equiv$\,\texttt{CS}),
 \texttt{SPI\_MISO\_PIN\,=\,31}. These pin numbers apply to all supported
 nRF52832 modules (SparkFun Breakout, QFN48, and WLCSP49).
 
 \paragraph{Startup and Chip Initialisation.}
-At startup, \texttt{spim\_init()} initialises SPIM0 with driver-controlled CS
-(\texttt{ss\_pin = SPI\_SS\_PIN}), allowing the CPU to perform blocking SPI
-transactions via \texttt{rhs\_transceive()} for chip initialisation and register
-access.
+At startup the SPI peripheral is initialised with CPU-controlled CS, allowing
+the CPU to perform the Intan chip initialisation and register configuration via
+direct SPI transactions.
 
 \paragraph{Transition to Recording Mode.}
-At the start of each acquisition, \texttt{acquisition\_start()} performs the
-following sequence. First, GPIOTE channel~0 is cleared and the CS pin is
-driven high manually, then SPIM0 is uninitialised and reinitialised with
-driver-controlled CS for chip re-initialisation and SPI pipeline priming.
-Two CPU-driven transactions prime the two-cycle pipeline: \texttt{CONVERT(0)}
-flushes it, followed by \texttt{CONVERT(63)} (or \texttt{CONVERT($k$)} in
-single-channel mode), which is left in \texttt{tx\_buffer} so that EasyDMA
-will keep sending it continuously without further CPU involvement. SPIM0 is
-then uninitialised again and reinitialised with
-\texttt{ss\_pin = NRFX\_SPIM\_PIN\_NOT\_USED}, handing CS control to GPIOTE.
-\texttt{spim\_enable\_dma\_list()} then configures GPIOTE channel~0 in toggle
-mode on the CS pin with the initial output set high, and sets up the EasyDMA
-RX list pointer to \texttt{active\_dma\_buffer}. In this mode the TX side is
-not in list mode --- the same \texttt{tx\_buffer} is retransmitted on every
-transaction --- while the RX side advances automatically through the buffer.
-Once Timer1 is started and the PPI channels are enabled, the entire acquisition
-loop --- CS assertion, SPI transaction, CS release, and DMA writes --- proceeds
-in hardware via PPI with no CPU involvement per sample.
+At the start of each acquisition, two CPU-driven SPI transactions prime the
+two-stage pipeline: the first flushes any residual state, and the second loads the
+TX buffer with the CONVERT(63) command (or the single-channel equivalent) so that
+EasyDMA replays it on every subsequent transaction without CPU involvement. CS
+control is then transferred from the CPU to GPIOTE hardware. Once Timer1 starts
+and the PPI links are enabled, the full acquisition loop --- CS assertion,
+SPI transaction, CS release, and DMA write to the active buffer --- runs entirely
+in hardware with no per-sample CPU involvement.
 
 \paragraph{Transition to Stimulation Mode.}
-When a stimulation command is received, recording is stopped first. SPIM0 is
-uninitialised, GPIOTE channel~0 is cleared, and \texttt{spim\_init()} restores
-driver-controlled CS for the stimulation register writes (per-channel DAC
-amplitude registers 64--79 and 96--111, and the stimulation enable registers
-32 and 33). SPIM0 is then uninitialised again and reinitialised with
-\texttt{ss\_pin = NRFX\_SPIM\_PIN\_NOT\_USED} at 8\,MHz. GPIOTE channel~0 is
-reconfigured in toggle mode, identical to recording mode. Timer1
-\texttt{CC[0]} is saved to \texttt{g\_timer1\_cc0\_rec} and overridden to
-8\,\textmu s (\texttt{nrf\_drv\_timer\_us\_to\_ticks(\&timer1, 8)}), and the
-same three recording PPI channels (\texttt{timer\_to\_cs\_low},
-\texttt{timer\_to\_spim}, \texttt{end\_to\_cs\_high}) are re-enabled. The TX
-EasyDMA pointer is set to the pre-built stimulation buffer in list mode
-(\texttt{TXD.LIST = 1}), with RX disabled (\texttt{RXD.MAXCNT = 0}). Three
-additional PPI channels and two hardware timers (Timer4 for per-pulse
-transaction counting and Timer3 for the inter-pulse gap) are also configured
-at this stage to implement autonomous pulse sequencing; their roles are
-described in Section~\ref{sec:stim_ppi}. On exit from stimulation, Timer1
-\texttt{CC[0]} is restored from \texttt{g\_timer1\_cc0\_rec} and
-\texttt{spim\_init()} is called again to restore driver-controlled CS before
-recording resumes.
+When a stimulation command is received, recording is stopped and CS control is
+briefly returned to the CPU to write the per-channel DAC amplitude and
+stimulation enable registers to the Intan chip. CS is then handed back to GPIOTE
+hardware and Timer1 is set to an 8\,\textmu{}s period (125\,kHz) instead of the
+recording-rate value. EasyDMA is reconfigured to transmit the pre-built
+stimulation command sequence without receiving any reply data. Three additional
+PPI channels and two hardware timers implement the autonomous pulse-sequencing
+logic described in Section~\ref{sec:stim_ppi}. On exit from stimulation, the
+timer period is restored and CS control is returned to the CPU before recording
+resumes.
 
 \paragraph{SPI Clock and Transaction Timing.}
 \label{sec:spi_timing}
-The SPI clock is fixed at 8\,MHz (\texttt{NRF\_SPIM\_FREQ\_8M}) in all modes.
-In recording mode
-the inter-transaction period is set by Timer1 and depends on the configured
-sampling rate. In stimulation mode, Timer1 \texttt{CC[0]} is explicitly set to
-8\,\textmu s, enforcing a fixed transaction period of 8\,\textmu s
-(125\,kHz). This value was chosen empirically: 160\,kHz caused unreliable
-operation, while 128\,kHz (7.8\,\textmu s) was stable; 8\,\textmu s provides
-a conservative round value within the stable regime.
+The SPI clock is fixed at 8\,MHz in all modes. In recording mode the
+inter-transaction period is set by Timer1 and depends on the configured sampling
+rate. In stimulation mode, Timer1 is set to an 8\,\textmu{}s period, enforcing a
+fixed transaction rate of 125\,kHz. This value was chosen empirically: 160\,kHz
+caused unreliable operation, while 128\,kHz was stable; 8\,\textmu{}s provides a
+conservative round value within the stable regime.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -731,45 +706,43 @@ a conservative round value within the stable regime.
 \subsubsection{Stimulation Architecture}
 \label{sec:stim_architecture}
 
-Electrical stimulation delivers biphasic current pulses implemented as a
-pre-computed sequence of SPI register writes to the Intan RHS2116.
-Charge balance is configurable: the default is a charge-balanced waveform
-with equal cathodic and anodic charge, but cathodic-only monophasic
-stimulation is equally supported --- the choice is left entirely to the user
-via the GUI, providing maximum flexibility. The stimulation pipeline is
-predominantly hardware-driven using PPI and EasyDMA; the only CPU involvement
-during active stimulation is a single ISR per pulse that resets the EasyDMA TX
-pointer so the next pulse replays the full waveform (Section~\ref{sec:stim_ppi}). Stimulation
-parameters are stored in a per-channel struct:
+Electrical stimulation delivers charge-balanced biphasic current pulses via a
+pre-computed sequence of SPI register writes to the Intan RHS2116, comprising a
+cathodic phase, an optional interphase delay, and an anodic phase; the inter-pulse
+gap is timed in hardware. The stimulation pipeline is predominantly hardware-driven
+using PPI and EasyDMA; the only CPU involvement during active stimulation is a
+single ISR per pulse that resets the EasyDMA TX pointer so the next pulse replays
+the full waveform (Section~\ref{sec:stim_ppi}). Stimulation parameters are stored
+in a per-channel struct:
 
 \begin{lstlisting}[language=C]
 typedef struct {
     bool     enabled;
-    uint8_t  cathodic_dac;  // DAC value, negative phase (regs 64-79)
-    uint8_t  anodic_dac;    // DAC value, positive phase (regs 96-111)
+    uint8_t  cathodic_dac;  // DAC value, negative phase
+    uint8_t  anodic_dac;    // DAC value, positive phase
     uint16_t cathodic_n;    // transaction count for cathodic phase
     uint16_t anodic_n;      // transaction count for anodic phase
 } stim_channel_params_t;
 \end{lstlisting}
 
-Pulse widths are expressed as SPI transaction counts. Since Timer1
-\texttt{CC[0]} is overridden to exactly 8\,\textmu s during stimulation
-(Section~\ref{sec:spi_timing}), each transaction occupies a fixed
-hardware-enforced interval of \texttt{SPI\_TRANSACTION\_TIME\_US} $= 8.0$\,\textmu s.
-Pulse widths received from the GUI in microseconds are converted to transaction
-counts as:
+Since the SPI transaction period is fixed at exactly 8\,\textmu{}s during
+stimulation (Section~\ref{sec:spi_timing}), pulse widths are naturally expressed
+as transaction counts: each count corresponds to one 8\,\textmu{}s increment.
+Pulse widths received from the GUI in microseconds are converted as:
 \begin{equation}
-    n = \left\lfloor \frac{t_{\text{pw}}}{\texttt{SPI\_TRANSACTION\_TIME\_US}}
-    - 2 + 0.5 \right\rfloor
+    n = \left\lfloor \frac{t_{\text{pw}}}{8\,\mu\text{s}} - 2 + 0.5 \right\rfloor
 \end{equation}
-where the $-2$ correction accounts for two mandatory overhead transactions at
-the start of each phase (the register writes that enable the current source and
-set the polarity), and $+0.5$ provides rounding to the nearest integer. All
-pulse durations are therefore quantised to multiples of 8\,\textmu s.
+where the $-2$ correction accounts for the two register-write transactions that
+open each phase: one sets the current direction and one enables the current source
+on all selected channels, both using the Intan's triggered-update (U-flag)
+mechanism so that the change takes effect atomically. These two transactions consume
+16\,\textmu{}s of the phase period but are necessary to initiate the current.
+The $+0.5$ term rounds to the nearest integer. All pulse durations are therefore
+quantised to multiples of 8\,\textmu{}s.
 
-Per-channel stimulation amplitude is independent: cathodic DAC values are
-written to registers 64--79 and anodic DAC values to registers 96--111 before
-stimulation starts. All
+Per-channel stimulation amplitude is independent: each channel's cathodic and
+anodic DAC values are written to the Intan amplitude registers before stimulation
+starts. All
 enabled channels share the same pulse timing, taken from the first enabled
 channel; per-channel timing is not supported in the current implementation.
 
@@ -820,93 +793,79 @@ where $f_{\text{stim}}$ is the stimulation frequency in Hz.
 \label{sec:stim_ppi}
 
 The stimulation pipeline reuses the same Timer1-driven PPI architecture as
-recording, with two modifications: Timer1 \texttt{CC[0]} is overridden to
-8\,\textmu s, and three additional PPI channels are allocated for pulse
-sequencing. The recording channel \texttt{m\_ppi\_ch\_end\_to\_count}
-(SPIM END $\to$ Timer2 COUNT) is the only recording channel \emph{not}
-re-enabled during stimulation; the remaining three (\texttt{timer\_to\_spim},
-\texttt{timer\_to\_cs\_low}, \texttt{end\_to\_cs\_high}) are re-enabled
-unchanged. The complete set of six active PPI channels during stimulation is
-summarised in Table~\ref{tab:ppi_stim}.
+recording, but with the timer period set to 8\,\textmu{}s and with three
+additional PPI links for pulse sequencing. The SPI-done $\to$ DMA-buffer
+counter link used in recording is the only link \emph{not} re-enabled; the
+three links that drive the SPI transaction itself (timer tick, CS low, CS
+high) are shared unchanged. The complete set of six active PPI links during
+stimulation is summarised in Table~\ref{tab:ppi_stim}.
 
 \begin{table}[htbp]
 \centering
-\caption{PPI channel configuration during stimulation. The top three channels
-are shared with recording mode; the bottom three are allocated exclusively for
-stimulation.}
+\caption{PPI link configuration during stimulation. The top three links are
+shared with recording mode; the bottom three are added for pulse sequencing.}
 \label{tab:ppi_stim}
 \begin{tabular}{lll}
 \toprule
-\textbf{Event Source}         & \textbf{Task Destination}     & \textbf{Purpose} \\
+\textbf{Trigger}              & \textbf{Action}               & \textbf{Purpose} \\
 \midrule
-Timer1 \texttt{COMPARE0}      & \texttt{SPIM START}           & Trigger SPI transaction \\
-Timer1 \texttt{COMPARE0}      & \texttt{GPIOTE OUT[0]}        & Assert CS low (toggle) \\
-\texttt{SPIM END}             & \texttt{GPIOTE OUT[0]}        & Release CS high (toggle) \\
+Timer1 tick                   & Start SPI transaction         & Drive the SPI clock \\
+Timer1 tick                   & Assert CS low                 & Begin transaction \\
+SPI transaction done          & Release CS high               & End transaction \\
 \midrule
-\texttt{SPIM END}             & Timer4 \texttt{COUNT}         & Count transactions per pulse \\
-Timer4 \texttt{COMPARE0}      & Timer1 \texttt{STOP}          & Stop pulse at end \\
-Timer4 \texttt{COMPARE0}      & Timer3 \texttt{START} (fork)  & Start inter-pulse gap timer \\
-Timer3 \texttt{COMPARE0}      & Timer1 \texttt{START}         & Begin next pulse \\
+SPI transaction done          & Increment pulse counter       & Count transactions per pulse \\
+Pulse counter reaches target  & Stop Timer1                   & End the pulse \\
+Pulse counter reaches target  & Start inter-pulse gap timer   & Begin the gap \\
+Gap timer expires             & Restart Timer1                & Begin next pulse \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Timer4 operates in counter mode and marks the end of each pulse: every
-completed SPI transaction increments it via the SPIM END $\to$ Timer4 COUNT
-PPI link, and when the count reaches \texttt{g\_stim\_total\_transactions}
-(the total number of transactions in one full pulse waveform),
-\texttt{COMPARE0} fires. At that moment two PPI tasks execute simultaneously:
-Timer1 is stopped --- ending SPI output and thus the pulse --- and Timer3 is
-started, marking the beginning of the inter-pulse gap.
-\texttt{SHORT\_COMPARE0\_CLEAR} resets Timer4 automatically so it is ready
-for the next pulse; no CPU involvement is required for either step.
-The only CPU involvement during active stimulation is in
-\texttt{timer4\_stim\_handler}, which fires at the same compare event and
-resets the EasyDMA TX pointer back to the start of \texttt{stim\_tx\_buf} so
-that the next pulse replays the full waveform from the beginning.
+A dedicated counter (Timer4 in counter mode) counts completed SPI
+transactions. When it reaches the pre-computed total for one full waveform,
+two things happen simultaneously via PPI: Timer1 stops --- ending SPI output
+and thus the pulse --- and a one-shot gap timer (Timer3) starts. Timer4
+resets automatically so it is ready for the next pulse. The only CPU
+involvement at this point is a single ISR that resets the EasyDMA TX pointer
+back to the start of the waveform buffer so the next pulse replays from the
+beginning.
 
-Timer3 is configured at 1\,MHz resolution as a one-shot timer
-(\texttt{SHORT\_COMPARE0\_STOP}), with its interrupt deliberately disabled ---
-the handler is empty and \texttt{COMPARE0} is used purely as a PPI event
-source. When Timer3 \texttt{COMPARE0} fires, Timer1 is restarted via PPI and
-the next pulse begins immediately. The inter-pulse gap is:
+When the gap timer expires, it restarts Timer1 via PPI and the next pulse
+begins immediately. The inter-pulse gap is:
 \begin{equation}
     t_{\text{interpulse}} = \frac{1\,000\,000}{f_{\text{stim}}}
-    - \texttt{g\_stim\_total\_transactions} \times 8\;\mu\text{s}
+    - N_{\text{pulse}} \times 8\;\mu\text{s}
 \end{equation}
-where $f_{\text{stim}}$ is the stimulation frequency in Hz.
+where $f_{\text{stim}}$ is the stimulation frequency in Hz and $N_{\text{pulse}}$
+is the total number of SPI transactions in one pulse waveform.
 
-On exit from stimulation, the three stimulation-only PPI channels are disabled
-and freed, Timer3 and Timer4 are disabled and uninitialised, GPIOTE channel~0
-is cleared, and Timer1 \texttt{CC[0]} is restored from
-\texttt{g\_timer1\_cc0\_rec}. Recording then resumes automatically via
-\texttt{start\_pending}.
+On exit from stimulation, the three stimulation-only PPI links are freed,
+Timer3 and Timer4 are stopped, and Timer1's period is restored to the
+recording rate before recording resumes.
 
 \subsection{Power Measurements}
 
 Power consumption was measured using the Nordic Power Profiler Kit~II
-(PPK2)~\cite{ppk2} in ammeter mode, supplied by a regulated DC bench supply at a
-defined constant voltage. The PPK2 inserts a precision shunt in series with the
-supply rail, measures the resulting voltage drop, and reports instantaneous current
-at up to 100\,kSPS; a sampling rate of 10\,kSPS was used to allow faster data
-saving without loss of relevant information. Average and peak current values are
-read directly from the nRF Connect for Desktop
-application~\cite{nrf_connect_desktop}\footnote{\url{https://www.nordicsemi.com/Products/Development-tools/nRF-Connect-for-Desktop}},
-which also records the full current-vs-time trace. Power is obtained by multiplying
-the measured current by the supply voltage.
+(PPK2)~\cite{ppk2} in ammeter mode at 10\,kSPS, supplied by a regulated DC bench
+supply at a defined constant voltage. Average and peak current values are read from
+the nRF Connect for Desktop application~\cite{nrf_connect_desktop}; power is
+obtained by multiplying the measured current by the supply voltage.
 
-The device under test comprised the custom WLCSP49 nRF52832 peripheral module, the
-Intan RHS2116 chip on its carrier board, and the intermediate connector board. Each
+The device under test comprised the custom WLCSP49 nRF52832 peripheral module
+(Figure~\ref{fig:miniaturization}), the Intan RHS2116 chip on its carrier board
+(Figure~\ref{fig:intan_board}), and the intermediate connector board
+(Figure~\ref{fig:wiring_connector}). Each
 configuration was recorded for 10\,s; the mean current stabilised well within the
 first second in all cases, so the 10\,s window provides a reliable average. Peak
 current values were recorded alongside the mean and are used to assess instantaneous
 load on the wireless power transfer system.
 
 All measurements were repeated at two supply voltages: 3.0\,V (representative
-bench supply) and 3.6\,V (the output voltage delivered by the wireless power
-transfer system in the current implementation; a slightly higher-than-nominal
-voltage is used to provide headroom for the resistive losses expected in thin-film
-interconnects). Table~\ref{tab:power_configs} lists all operating configurations measured.
+bench supply) and 3.6\,V (the current WPT output voltage, chosen to provide
+headroom for resistive losses in thin-film interconnects). The actual supply
+voltage in a thin-film implementation will depend on interconnect geometry and
+may fall between or outside these values, so the two figures bracket the likely
+operating range. Table~\ref{tab:power_configs} lists all operating configurations measured.
 
 \begin{table}[h]
 \centering
@@ -932,15 +891,17 @@ $f_\text{ch}$: per-channel sampling rate.}
 \end{tabular}
 \end{table}
 
-\noindent The 16-channel, 2\,kHz/channel configuration was measured separately as
-part of a dedicated sweep over channel count (1--16 channels all at 2\,kHz per
-channel) to characterise the trend with channel count; all measurements in that
-sweep used a consistent supply voltage to ensure comparability.
+\noindent A dedicated channel-count sweep remeasured all channel counts 1--16 at a
+consistent 3.6\,V supply, each at 2\,kHz/ch and at the maximum achievable rate,
+to characterise power consumption as a function of channel count
+(Appendix Table~\ref{tab:power_repeat}). Values from this sweep may differ
+slightly from Table~\ref{tab:power_3v6_3v} due to the difficulty of setting the
+bench supply to an exact voltage between sessions.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{Central Firmware}
+\subsection{Central Firmware}\label{sec:central_firmware}
 
 The central nRF52832 DK operates in the BLE central role. The scanning and
 connection management code follows the standard Nordic SDK NUS central example:
@@ -954,9 +915,14 @@ notification payloads (depending on the negotiated ATT MTU), fragments are
 accumulated in a staging buffer until exactly 226 bytes have been received.
 Binary encoding is used rather than ASCII to keep the frame compact: the 112
 two-byte sample values occupy 224 bytes as binary, compared to up to 672 bytes
-as formatted decimal strings. The completed packet is serialised into a
-232-byte binary frame and written to RTT channel~0 via
-\texttt{SEGGER\_RTT\_Write()}:
+as formatted decimal strings. The choice of 112 samples per packet is deliberate:
+it is the largest integer divisible by 16 whose payload (112\,$\times$\,2\,$+$\,2
+bytes counter\,$=$\,226 bytes) fits within the 247-byte maximum BLE notification
+capacity. Divisibility by 16 ensures that in full 16-channel mode each packet
+contains exactly seven complete channel cycles and therefore always begins at
+channel~1, simplifying channel demultiplexing. The completed packet is serialised
+into a 232-byte binary frame (adding a 6-byte synchronisation header) and written
+to RTT channel~0 via \texttt{SEGGER\_RTT\_Write()}:
 
 \begin{itemize}
     \item Bytes 0--5: synchronisation header (\texttt{0xAA 0x55} repeated
@@ -972,40 +938,13 @@ The staging buffer is reset to zero on disconnect to prevent stale fragments
 from a previous connection corrupting the first packet of the next session.
 
 \paragraph{Packet Loss Detection.}
-The peripheral assigns a rolling 16-bit counter to each transmitted packet in
-\texttt{send\_ble\_packets()}, stamped immediately before advancing the ring buffer
-read pointer. The counter is declared as a static variable initialised to zero at
-boot; it increments with every packet and is not reset when recording restarts ---
-only a power cycle resets it.
-
-The GUI initialises \texttt{last\_counter} to \texttt{None} at the start of each
-recording session. On each received frame the expected counter value is
-$(\texttt{last\_counter} + 1) \bmod 65536$; modular arithmetic is required
-because the 16-bit counter wraps from 65535 back to~0. If the received value
-differs, the estimated number of lost packets is
-$\texttt{lost} = (\texttt{counter\_raw} - \texttt{expected}) \bmod 65536$.
-A threshold of $\texttt{lost} < 65534$ excludes two specific degenerate cases
-arising from modular arithmetic: a counter that has moved backward by one step
-(impossible under normal monotonic operation) would yield
-$\texttt{lost} = 65535$ ($= {-1} \bmod 65536$), and backward by two steps
-would yield $\texttt{lost} = 65534$. Values at or above this threshold are
-therefore treated as spurious rather than genuine loss. When genuine loss is detected, the cumulative loss counter is incremented and
-the channel interleaving phase is corrected. Because each packet carries 112
-samples and 112 may not be divisible by $N_\text{ch}$, the channel at which a
-packet starts advances by $112 \bmod N_\text{ch}$ positions per packet. If
-\texttt{lost} packets are missing, the channel assignment at the start of the
-next received packet has shifted by $112 \times \texttt{lost}$ positions from
-what was expected; \texttt{ch\_phase} is therefore advanced by
-$112 \times \texttt{lost} \bmod N_\text{ch}$, maintaining correct
-sample-to-channel assignment for all subsequent packets.
-
-After a peripheral power cycle, \texttt{packet\_counter} resets to zero on reboot.
-If the GUI has recording active at the time of power loss, the first packet after
-reconnect (counter~$= 0$) will appear as a large backward jump from the last
-received value, and a correspondingly large false loss count will be accumulated.
-The correct remedy is to stop and restart recording in the GUI following
-reconnection, which reinitialises \texttt{last\_counter} to \texttt{None} and
-establishes a fresh baseline from the first new packet.
+Each BLE packet carries a 16-bit rolling counter. The GUI checks on every
+received frame whether the counter has advanced by exactly one; a larger gap
+indicates that one or more packets were lost in transmission. When loss is
+detected, the cumulative lost-packet count in the status bar is incremented,
+and the channel assignment phase is corrected to account for the missing
+112-sample gaps. Both the firmware and the GUI reset their counters at the
+start of each recording session, so packet tracking is always consistent.
 
 \paragraph{Command Forwarding.}
 An application timer polling \texttt{rtt\_check\_timer\_handler} fires every
@@ -1044,9 +983,8 @@ are forwarded to the peripheral via \texttt{ble\_nus\_c\_string\_send()}:
     Matching is by substring search (the keyword is accepted anywhere within
     the received string), unlike binary packets which require an exact leading
     byte and exact length. Binary encoding is used for the C, S, and R packets
-    precisely because they carry structured multi-byte numerical data (DAC
-    values, frequencies, pulse widths) that would be verbose and error-prone
-    to encode as ASCII strings.
+    because their multi-byte numerical payload (DAC values, pulse widths,
+    frequencies) would exceed the BLE write size limit if encoded as ASCII text.
 \end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1056,9 +994,9 @@ are forwarded to the peripheral via \texttt{ble\_nus\_c\_string\_send()}:
 
 The Python-based GUI communicates with the central DK via RTT over the J-Link
 USB interface using the \texttt{pylink-square} library. It runs two concurrent
-threads: a background daemon thread (one that terminates automatically when the
-main program exits) reads RTT data continuously and parses incoming frames,
-while the main Qt thread handles all UI rendering and user interaction. Communication between threads is handled via PyQt5 signals
+threads: a background reader thread processes RTT data continuously and parses
+incoming frames, while the main Qt thread handles all UI rendering and user
+interaction. Communication between threads is handled via PyQt5 signals
 (\texttt{pyqtSignal}) to ensure thread safety.
 
 \paragraph{Frame Synchronisation and Packet Parsing.}
@@ -1117,8 +1055,8 @@ begins; this is a straightforward extension left for a future release.
 \paragraph{Channel Resynchronisation.}
 Under normal operating conditions with a stable power supply, no channel
 desynchronisation was observed during continuous operation. Occasional
-desynchronisation was observed only when the supply voltage was at the minimum
-threshold required to power on the system. Two independent mechanisms can
+desynchronisation was observed in some conditions, including but not limited to
+operation near the minimum supply voltage. Two independent mechanisms can
 produce it: (1)~noise on the CS line --- a spurious CS pulse causes the Intan
 RHS2116 to advance its internal channel counter by one extra step, permanently
 offsetting all subsequent channel assignments by a constant amount (identical
@@ -1131,22 +1069,23 @@ cannot be assumed regardless of the sampling command used --- switching to
 samples if the underlying electrical conditions are faulty. Channel
 desynchronisation should therefore be treated as a symptom of a more
 fundamental operating problem --- not a firmware defect --- and investigated
-accordingly. This issue is expected to be eliminated when the Intan and
-nRF52832 are collocated on the same PCB with short SPI traces, since the
-long wires between separate boards in the current prototype are the likely
-source of both noise susceptibility and marginal signal integrity.
+accordingly. Noise on the CS and SPI lines from the long inter-board wiring is
+expected to be eliminated when the Intan and nRF52832 are collocated on the
+same PCB with short SPI traces.
 
 A \texttt{Resync Channels} button recovers correct channel alignment by
 triggering a brief zero-amplitude stimulation sequence, which empirically
-resets the Intan's internal channel cycling state. Should a channel shift be
-suspected, shorting one recording channel to GND provides a fixed-amplitude
-reference that makes any constant offset immediately visible, since all
-channels shift by the same amount. The presence of a channel offset is,
-however, an indicator of incorrect operating conditions and should prompt
+resets the Intan's internal channel cycling state. If periodic channel shifts are occurring during normal operation --- for example
+because the WPT supply briefly dips below the minimum threshold every few minutes
+--- shorting one recording channel to GND provides a fixed-amplitude reference:
+a channel shift appears as a sudden constant offset in all channels simultaneously,
+making it immediately detectable in the recorded data. The presence of recurring
+channel shifts is an indicator of incorrect operating conditions and should prompt
 investigation rather than simply be corrected and ignored.
 
 Pre-built executables for Windows, macOS, and Linux are available as release
-artefacts on the project repository
+artefacts on the project repository (only the Windows build was verified during
+development)
 (\url{https://github.com/Simonseyfert/ble_spi_intan}; access upon request at
 \href{mailto:simon.seyfert@epfl.ch}{simon.seyfert@epfl.ch} or
 \href{mailto:simon.seyfert@tum.de}{simon.seyfert@tum.de}),

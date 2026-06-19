@@ -103,7 +103,7 @@ Tektronix DPO2024 Digital Phosphor Oscilloscope~\cite{tektronix_dpo2024}
 to verify the waveform shape and amplitude. Figure~\ref{fig:stim_osc}
 shows simultaneous stimulation on two channels. Both channels use equal cathodic
 and anodic pulse widths of 400\,\textmu{}s with an interphase delay of
-approximately 25\,\textmu{}s. The two channels operate at different amplitudes:
+26\,\textmu{}s (the minimum selectable in the firmware). The two channels operate at different amplitudes:
 the upper trace (blue) carries half the current of the lower trace
 (yellow), demonstrating independent per-channel amplitude control. The waveforms
 are charge-balanced and the biphasic shape is clearly resolved. The low-level
@@ -118,7 +118,7 @@ and trigger the stimulation sequence.
     \includegraphics[width=0.8\textwidth]{figures/oscilloscope_two_channels_stim.jpg}
     \caption{Oscilloscope trace of simultaneous two-channel biphasic stimulation.
     Both channels: 400\,\textmu{}s cathodic phase, 400\,\textmu{}s anodic phase,
-    $\approx 25$\,\textmu{}s interphase delay. The upper channel (blue) has
+    26\,\textmu{}s interphase delay (minimum selectable). The upper channel (blue) has
     approximately half the amplitude of the lower channel (yellow), demonstrating
     independent per-channel amplitude control.}
     \label{fig:stim_osc}
@@ -318,7 +318,7 @@ successfully acquired and transmitted over BLE, confirming end-to-end operation
 under wireless power. Following a momentary power interruption and automatic
 reconnection, BLE throughput recovered to its maximum value within approximately
 2--3\,s; data acquired during this ramp-up period are saved but should be
-discarded in post-processing.
+discarded in post-processing (see Section~\ref{sec:results_noise}).
 
 \subsubsection*{Interference with Carrier Board in the WPT Field}
 
@@ -365,7 +365,7 @@ $+4000$\,\textmu{}V --- well beyond the $\pm5$\,mV input range of the RHS2116.
 
 \subsubsection*{Direct On-Chip Measurement}
 
-Shorting channel~0 directly on the Intan RHS2116 die, bypassing the carrier board
+Shorting channel~1 directly on the Intan RHS2116 die, bypassing the carrier board
 and its wiring, reduced the interference to $\pm20$--$30$\,\textmu{}V
 (Figure~\ref{fig:shorted_on_intan}) --- a reduction of approximately 200-fold
 relative to the $-6000$ to $+4000$\,\textmu{}V saturation observed with the

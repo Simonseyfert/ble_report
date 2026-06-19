@@ -520,21 +520,28 @@ library) to hardware-driven control via GPIOTE and PPI, the new code appeared to
 work correctly on the first test. What was not immediately obvious was why: because
 the nRF52832 DK is power-cycled during flashing but VDD on the pin headers remains
 active (supplied by the DK's USB regulator), the Intan RHS2116 had never lost
-power and still held its register configuration from the previous session. The new
-code, which no longer called the Intan initialisation sequence, was simply
-inheriting the state left by the old code.
+power and still held its register configuration from the previous session.
+
+In the new code, SPIM was initialised with \texttt{NRFX\_SPIM\_PIN\_NOT\_USED}
+as the chip-select pin from the outset, leaving CS for GPIOTE to control.
+The Intan initialisation sequence was still present and called at startup, but
+because SPIM had no ss\_pin, CS was never asserted during those register writes:
+the SPI transactions went out on MOSI but the Intan ignored every one of them.
+The chip silently inherited the register state from the previous session, so
+everything appeared to work.
 
 The following morning, after the setup had been powered off overnight, the same
 code produced no output at all. Reverting to the old firmware --- which did include
-initialisation --- restored operation. Flashing the new code immediately afterward
-also worked, because the old firmware had just reinitialised the chip. This
-alternating pattern (old works, new fails, old works, new works) was a strong hint
-that initialisation was the culprit, but the situation only became fully clear when
-watching the CS line on the oscilloscope: after flashing the new peripheral
-firmware, the CS line remained continuously high until \textbf{Start Recording}
-was pressed --- confirming that the Intan was never being initialised on startup.
-The fix was to add the initialisation sequence back into the new code, called once
-at boot before the PPI chain is enabled.
+a working initialisation --- restored operation. Flashing the new code immediately
+afterward also worked, because the old firmware had just reinitialised the chip.
+This alternating pattern (old works, new fails, old works, new works) was a strong
+hint that initialisation was the culprit, but the root cause only became fully clear
+when watching the CS line on the oscilloscope: after flashing the new peripheral
+firmware, the CS line remained continuously high throughout the startup
+initialisation sequence --- confirming that CS was never being asserted.
+The fix was to reinitialise SPIM \emph{with} the ss\_pin before calling the Intan
+initialisation sequence, then reinitialise it again without the ss\_pin before
+handing control to GPIOTE.
 
 \paragraph{Test All Features Regularly.}
 Every time a change is made, verify that all existing functionality still works ---

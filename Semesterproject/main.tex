@@ -70,11 +70,13 @@
 \section*{Abstract}
 \addcontentsline{toc}{section}{Abstract}
 
-Fully implantable neural interfaces require both wireless power delivery and wireless
-data transmission to eliminate transcutaneous connections and the associated infection
-risk, patient discomfort, and long-term reliability concerns. This work presents a
-complete wireless neural recording and stimulation system targeting electrocorticography
-and spinal cord recordings, with the rat spinal cord as the primary application.
+Continuous high-bandwidth wireless data transmission from a miniaturised fully
+implantable neural interface imposes a sustained power demand that a
+thin-film-compatible battery cannot maintain over clinically relevant timescales.
+Wireless power transfer~(WPT) is therefore required to enable long-term,
+uninterrupted operation without transcutaneous connections. This work presents a
+complete wireless neural recording and stimulation system targeting surface neural recordings such as electrocorticography and spinal cord
+recordings (e.g., rat spinal cord).
 The system comprises a peripheral nRF52832 module interfacing with an Intan RHS2116
 16-channel neural recording and stimulation chip via SPI, a central nRF52832 device
 receiving data over Bluetooth Low Energy~(BLE), and a Python-based graphical user
@@ -92,10 +94,10 @@ timing control, and persistent configuration storage in non-volatile flash memor
 
 BLE throughput with real SPI data reached up to approximately 540\,kbps in the
 16-channel, 2\,kHz-per-channel configuration, confirming that the hardware-driven
-pipeline sustains the required data rate. Faithful reconstruction of a 300\,Hz,
-1\,mV sinusoidal test signal was demonstrated on a representative channel in
-both the 16-channel, 2\,kHz-per-channel and the 8-channel, 4\,kHz-per-channel
-recording configurations.
+pipeline sustains the required data rate. Faithful reconstruction of a 300\,Hz, 1\,mV sinusoidal test signal was confirmed
+across a range of channel-count and sampling-rate configurations; representative
+results for the 16-channel, 2\,kHz-per-channel and 8-channel, 4\,kHz-per-channel
+configurations are presented.
 The nRF52832 peripheral module consumed 18.6\,mW (equivalent to 20.4\,mW at 3.3\,V),
 a 31\,\% reduction compared to the prior single-channel implementation, while
 simultaneously increasing the channel count 16-fold. Combined system power

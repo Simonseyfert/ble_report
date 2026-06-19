@@ -10,15 +10,22 @@ postsynaptic cell, creating an extracellular current sink whose return
 currents through the surrounding tissue give rise to the measured
 potential. When such recordings are made from the cortical surface this
 modality is termed electrocorticography (ECoG); the present system
-targets implantation on the rat spinal cord as the primary application,
-with the hardware and firmware architecture equally applicable to other
-surface recording scenarios.
+targets surface neural recordings such as electrocorticography and spinal cord
+recordings (e.g., rat spinal cord), with the hardware and firmware architecture
+equally applicable to other surface recording scenarios. The system is built from commercially available
+components --- the Nordic nRF52832 microcontroller and Intan RHS2116 neural
+recording chip --- enabling rapid system-level prototyping and end-to-end
+validation without the multi-year development cycle of a custom integrated
+circuit.
 
 Compared to scalp EEG, surface electrodes are in much closer proximity
-to the target tissue, substantially reducing spatial averaging: the
-spatial spread of subdural cortical ECoG can be as local as approximately
-0.5--5\,mm~\cite{schwartz2006brain, dubey2019cortical, thielen2023making}.
-Recorded amplitudes are correspondingly larger than EEG; for cortical
+to the target tissue, providing substantially higher spatial specificity:
+the spatial spread of subdural cortical ECoG can be as local as approximately
+0.5--5\,mm~\cite{schwartz2006brain, dubey2019cortical, thielen2023making},
+allowing signals from targeted neural populations to be resolved that
+would be indistinguishable in the spatially averaged scalp signal.
+Recorded amplitudes are correspondingly larger, making signals accessible
+that would fall below the noise floor of a scalp EEG measurement; for cortical
 ECoG, reported values range from hundreds of microvolts to several
 millivolts~\cite{thielen2023making} (species unspecified), while
 whisker-stimulation-evoked responses in rat cortex have been measured
