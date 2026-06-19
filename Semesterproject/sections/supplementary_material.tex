@@ -554,7 +554,7 @@ Use \texttt{git} to track all changes. Commit frequently, with a short subject l
 and an extended body that explains \emph{why} the change was made, not just what
 was changed. A useful commit format in the terminal is:
 \begin{lstlisting}[numbers=none,frame=none]
-git commit -m "Short summary (50 chars or less)" \
+git commit -m "Short summary" \
            -m "Extended explanation: what was tried, what
                failed, and why this approach was chosen."
 \end{lstlisting}
@@ -615,13 +615,6 @@ GND    & Black     & GND    \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-\noindent\textbf{Note on VDD and VTG.}
-VDD is connected from the DK to the peripheral to power the module (the custom modules
-have no USB port). VTG is the J-Link voltage reference input: connecting it to the
-peripheral's VDD rail tells the J-Link to match its SWD I/O levels to 3.3\,V,
-ensuring reliable communication. Both wires connect to the same VDD rail on the
-peripheral.
 
 \noindent\textbf{Important: disconnect the DK after flashing.}
 If the DK remains connected, the BLE central may connect to the DK's own nRF52832

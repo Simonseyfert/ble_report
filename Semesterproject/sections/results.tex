@@ -10,8 +10,8 @@ are presented in the subsections that follow.
 BLE throughput with real SPI data from the Intan RHS2116 reached up to
 approximately 540\,kbps in the default 16-channel configuration at 2\,kHz per channel,
 confirming that the hardware-driven pipeline sustains the required data rate under
-continuous operation
-(Section~\ref{sec:results_ble}). The stimulation pipeline was validated by oscilloscope
+continuous operation; no packet loss was observed under stable operating conditions.
+The stimulation pipeline was validated by oscilloscope
 measurement of the biphasic waveform at the Intan RHS2116 output, confirming correct pulse
 shape, timing, and charge balance across a range of configured parameters
 (Section~\ref{sec:results_stim}). Multi-channel neural signal recording was confirmed by
@@ -75,26 +75,6 @@ number of samples per period (13.3 samples/period at 4\,kHz vs.\ 6.7 at 2\,kHz).
     \label{fig:rec_8ch}
 \end{figure}
 
-\subsection{BLE Throughput and Packet Loss}
-\label{sec:results_ble}
-
-In the 16-channel, 2\,kHz-per-channel configuration, measured BLE throughput
-reached up to approximately 540\,kbps under stable operating conditions.
-This confirms that the hardware-driven PPI/EasyDMA pipeline sustains the full
-required data rate with real SPI acquisition data, in contrast to the prior
-implementation whose reported 600\,kbps maximum was measured with synthetic
-data only.
-
-Under normal operating conditions --- stable power supply, no recent power
-interruption, and a stable CS line --- no packet loss was observed during
-continuous recording sessions. The rolling 16-bit packet counter and the
-GUI's per-packet loss detection (described in Section~\ref{sec:methods}) allow
-any deviations from this baseline to be detected and quantified in real time.
-After a power interruption and subsequent reconnection, throughput recovers to
-its maximum value within approximately 2--3\,s; data acquired during this
-ramp-up period are saved but should be discarded in post-processing
-(see Section~\ref{sec:results_noise}).
-
 \subsection{Stimulation Waveform Validation}
 \label{sec:results_stim}
 
@@ -156,8 +136,11 @@ Power increases approximately linearly from 43.7\,mW (1 channel) to 61.3\,mW
 \texttt{CONVERT(63)} runs at $2\,\text{kHz} \times 16 = 32$\,kHz regardless of
 how many channels are selected. The lower SPI activity reduces power draw in both
 the nRF52832 (fewer DMA transactions) and the Intan RHS2116 (fewer ADC conversion
-cycles). BLE throughput is identical across all configurations (32\,000 samples/s
-total).
+cycles). The total SPI transaction rate is identical across the 2--16-channel
+configurations (32\,kHz), since \texttt{CONVERT(63)} cycles through all 16 channels
+regardless of how many are selected; only the selected samples are forwarded over BLE,
+so actual BLE throughput varies from 4\,000 samples/s (2 channels) to 32\,000 samples/s
+(16 channels).
 
 \begin{figure}[h]
     \centering
@@ -175,9 +158,9 @@ total).
 
 Figure~\ref{fig:power_maxrate} shows the maximum achievable per-channel sampling
 rate and the corresponding combined power consumption as a function of channel
-count. For 4--16 channels the system is BLE-limited: the total useful throughput
-is capped at 32\,000 samples/s, and per-channel rate decreases inversely with
-channel count. For 2 and 3 channels the system is instead SPI-limited: the SPI
+count. For 1 channel and 4--16 channels the system is BLE-limited: the total useful
+throughput is capped at 32\,000 samples/s, and for the multi-channel configurations
+the per-channel rate decreases inversely with channel count. For 2 and 3 channels the system is instead SPI-limited: the SPI
 bus reaches its empirical maximum of 128\,kHz, yielding 8\,kHz per channel, but
 the resulting BLE throughput (16\,000 and 24\,000 samples/s respectively) is
 below the 32\,000\,samples/s BLE ceiling. The reduced BLE activity produces a
@@ -207,18 +190,23 @@ expectation that issuing commands for only the selected channels would be cheape
 Whether this per-transaction overhead would be fully or partially offset by the
 reduction in transaction count is not determinable from the available data; a direct
 measurement of a \texttt{CONVERT($k$)}-based multi-channel implementation would be
-required. For LFP recording at 2\,kHz per channel, neither configuration approaches
-the SPI or BLE ceiling, so the question is of limited practical significance in the
-target application.
+required. This question is not merely a concern at maximum rate: the present results
+come from comparisons at the same total SPI rate (held constant by \texttt{CONVERT(63)}'s
+fixed 32\,kHz output for all multi-channel configurations). A
+\texttt{CONVERT($k$)}-based implementation at 2\,kHz per channel would operate at only
+$N \times 2$\,kHz total (for $N$ selected channels), a factor of 16 lower at
+$N = 2$ --- so the net power difference between the two architectures at 2\,kHz per
+channel is also an open question requiring a direct measurement.
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.85\textwidth]{figures/max_rate_per_channel_and_power_consumption.png}
     \caption{Maximum achievable per-channel sampling rate (left axis, circles) and
     combined nRF52832 and Intan RHS2116 power consumption at 3.6\,V (right axis,
-    squares) as a function of the number of active recording channels. Configurations
-    with 4--16 channels are BLE-limited at 32\,000 total samples/s; 2 and 3 channels
-    are SPI-limited at 128\,kHz and show a dip in power due to lower BLE throughput.}
+    squares) as a function of the number of active recording channels. The 1-channel
+    and 4--16-channel configurations are BLE-limited at 32\,000 total samples/s; 2 and
+    3 channels are SPI-limited at 128\,kHz and show a dip in power due to lower BLE
+    throughput.}
     \label{fig:power_maxrate}
 \end{figure}
 
@@ -299,8 +287,9 @@ plots for the two runs are provided in Appendix~\ref{app:power_repeat}.
 \label{sec:results_noise}
 
 The primary motivation for progressively miniaturising the peripheral module was
-physical size: the target application is the rat spinal cord, which imposes strict
-volume and weight constraints on any implanted device. A secondary but equally
+physical size: implantable neural devices for small animals such as rodents face
+strict volume and weight constraints, and the rat spinal cord is among the most
+demanding anticipated targets in this regard. A secondary but equally
 important motivation is compatibility with wireless power delivery, which requires
 the entire module to fit within the receiver coil footprint. Using the WPT system developed in
 parallel within the lab (developed by Marta Vasconcelos), the complete peripheral --- nRF52832 and
@@ -318,19 +307,17 @@ successfully acquired and transmitted over BLE, confirming end-to-end operation
 under wireless power. Following a momentary power interruption and automatic
 reconnection, BLE throughput recovered to its maximum value within approximately
 2--3\,s; data acquired during this ramp-up period are saved but should be
-discarded in post-processing (see Section~\ref{sec:results_noise}).
+discarded in post-processing.
 
 \subsubsection*{Interference with Carrier Board in the WPT Field}
 
-A key goal of the WPT integration was to eliminate the long cables running from
-the bench-top function generator to the carrier board: in a freely moving animal
-these cables are not an option, and even on the bench they represent a potential
-interference path. When the Intan RHS2116 on its carrier board was placed inside
-the transmitter coil field, the 300\,Hz sinusoidal input was no longer recoverable.
-Two coupled mechanisms contribute: (1)~the long external wires from the function
-generator to the carrier board act as antennas, and (2)~the carrier board's own
-traces and wiring loops form inductive pickup paths in the alternating magnetic
-field of the WPT transmitter --- even without external cables attached.
+Placing the Intan RHS2116 on its carrier board inside the transmitter coil field
+rendered the 300\,Hz sinusoidal test input unrecoverable. Two coupled mechanisms
+contribute, both bench-specific and absent in a final implanted system:
+(1)~the external cables from the function generator used to inject the test signal
+act as antennas, and (2)~the carrier board's own traces and wiring loops form
+inductive pickup paths in the alternating magnetic field of the WPT transmitter,
+even without external cables attached.
 
 To characterise the interference quantitatively without the confound of the input
 signal, channel~7 was shorted to GND on the carrier board (nearest recording channel
@@ -347,7 +334,7 @@ smartphone in the vicinity was observed to introduce additional interference.
 At 4\,cm the interference increases substantially, with excursions reaching
 $+50$ to $+60$\,\textmu{}V and down to $-90$\,\textmu{}V. Inside the coil the
 signal saturates the amplifier input entirely, spanning from $-6000$ to
-$+4000$\,\textmu{}V --- well beyond the $\pm5$\,mV input range of the RHS2116.
+$+4000$\,\textmu{}V.
 
 \begin{figure}[h]
     \centering
@@ -373,7 +360,7 @@ carrier board inside the coil. This two-orders-of-magnitude improvement confirms
 that the carrier board wiring --- rather than the chip itself or the WPT field
 acting directly on the silicon --- is the dominant pickup path. The residual
 $\pm20$--$30$\,\textmu{}V reflects hand-soldered connections still forming small
-pickup loops; microfabricated traces on a co-integrated PCB would reduce these
+pickup loops; microfabricated traces on a co-integrated PCB would probably reduce these
 further.
 
 \begin{figure}[h]

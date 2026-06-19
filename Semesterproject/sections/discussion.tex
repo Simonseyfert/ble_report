@@ -20,68 +20,78 @@ antennas in the alternating magnetic field.
 The implication is that the interference problem is primarily a packaging problem,
 not an intrinsic incompatibility between BLE-based neural recording and WPT.
 A co-integrated PCB with short, shielded traces connecting the nRF52832 and Intan
-RHS2116 would dramatically reduce pickup loop area and antenna length. The
+RHS2116 would probably substantially reduce pickup loop area and antenna length. The
 prototype flex PCB (Figure~\ref{fig:miniaturization}d) represents exactly this
 direction; its oscillator circuit was non-functional in the current revision, but
 the hardware fault is unrelated to the interference mechanism and does not
 undermine this conclusion.
 
-\subsection{Power Consumption and Architectural Improvements}
-
-The present system achieves a 31\,\% reduction in nRF52832 module power compared
-to the prior single-channel CPU-polling implementation~\cite{prior_impl}, while
-simultaneously increasing the channel count 16-fold. Two architectural changes
-account for this. First, replacing the CPU polling loop with a PPI/EasyDMA
-acquisition pipeline allows the processor to remain in low-power sleep between
-BLE connection events rather than spinning continuously; the power timecourse data
-confirm this. Second, removal of the UART peripheral --- which was used
-in the prior implementation to forward data to the computer --- eliminates a
-further source of continuous power draw.
-
 \subsection{Ring Buffer Architecture}
 \label{sec:discussion_ringbuffer}
 
 The periodic power spikes visible in the timecourse data arise from CPU activity
-at each DMA buffer swap: copying 819 samples from the inactive DMA buffer into the
-ring buffer and assembling BLE packets. An alternative architecture could send data
-directly from the inactive DMA buffer, potentially reducing these spikes. However,
-this carries two costs. First, the ring buffer stores only the selected channels at
-2\,bytes per sample, whereas the DMA buffers hold all 16 channels at 4\,bytes
-each; in a 2-channel recording the ring buffer is 16$\times$ more memory-efficient
-per acquisition cycle, allowing proportionally more data to be buffered in the
-available RAM. Second, removing the ring buffer reintroduces a synchronisation
-problem between the SPI EasyDMA write path and the BLE read path, requiring
-careful atomic coordination that the current double-buffer architecture cleanly
-avoids. This optimisation is left for future work if power becomes the primary
+at each DMA buffer swap: copying samples from the inactive DMA buffer into the
+ring buffer and assembling BLE packets. An alternative architecture could transmit
+data directly from the inactive DMA buffer, potentially reducing these spikes.
+
+The ring buffer's role is twofold. First, it stores only the selected channels at
+2\,bytes per sample, whereas the DMA buffers store all 16 channels at 4\,bytes
+each; in a 2-channel recording each ring buffer slot is 16$\times$ more compact
+per acquisition cycle than a DMA slot. This efficiency is per-sample only: the
+current architecture still allocates two full DMA buffers alongside the ring
+buffer (three buffers in total), so the overall memory footprint is not reduced
+16$\times$. The practical benefit of the ring buffer's compactness is that it
+can hold many more samples in the available RAM, giving the BLE stack headroom
+to fall behind temporarily without overwriting unread data. Second, the ring
+buffer cleanly separates the SPI write path from the BLE read path: the DMA
+pipeline writes to the inactive buffer only and the CPU reads from it only once
+per swap, so no locking is needed.
+
+Bypassing the ring buffer has two realisations with different trade-offs.
+\emph{Option A} (two buffers total): retain double-buffered EasyDMA but transmit
+directly from the inactive buffer, removing the ring buffer entirely. Atomicity
+is preserved, but the DMA buffers store all 16 channels at 4\,bytes each --- no
+channel filtering --- so each buffer holds far fewer effective samples of the
+selected channels, and the system can tolerate fewer BLE delays before data is
+overwritten.
+\emph{Option B} (one buffer total): replace the two DMA buffers with a single
+large EasyDMA list acting as a circular acquisition buffer, and transmit directly
+from it. Because the full buffer capacity is available as a continuous queue
+rather than being split between a write half and a read half, this gives twice
+the BLE delay tolerance of Option~A for the same total memory. The atomic
+handover of the ping-pong scheme is no longer available, however, so the SPI
+write pointer and BLE read pointer must be managed carefully to prevent
+overwrites. Even so, Option~B is probably still worse than the current
+architecture for low channel counts: at 2\,channels the ring buffer stores data
+at 2\,channels\,$\times$\,2\,bytes per cycle, whereas an unfiltered DMA buffer
+stores 16\,channels\,$\times$\,4\,bytes --- a 16$\times$ difference that
+outweighs the 2$\times$ gain from removing ping-pong.
+
+This optimisation is left for future work if power becomes the primary
 constraint.
-
-\subsection{BLE Throughput}
-
-BLE throughput of up to approximately 540\,kbps with real SPI data from the Intan
-RHS2116 confirms that the hardware-driven pipeline successfully removes the CPU
-bottleneck that limited the prior implementation. In the prior work, 600\,kbps was
-reported, but this figure was achieved with synthetic data only; with real SPI
-acquisition running concurrently, the CPU had insufficient time between SPI
-transactions to sustain reliable BLE transmission, limiting the system to a single
-channel at 2\,kHz. The present architecture decouples acquisition from the CPU
-almost entirely, sustaining the required throughput across all tested channel and
-sampling rate configurations with no packet loss.
 
 \subsection{Limitations}
 
-The carrier board used throughout this work is not representative of a final
-implantable form factor. Most interference measurements reflect a bench-top
-assembly with long external wires, which as discussed above is the dominant
-source of WPT-induced noise. The exception is the direct on-chip measurement
-(channel shorted at the Intan die, without the carrier board), which already
-demonstrated a $\approx 200$-fold interference reduction and establishes a lower
-bound on what a co-integrated PCB solution would achieve. Power measurements were made at room
-temperature; thermal effects under implanted conditions have not been characterised.
-The prototype flex PCB co-integrating the nRF52832 and Intan RHS2116 was
-non-functional in its current revision, and neural recording with the most compact
-hardware configuration could not be demonstrated. Signal recording was validated using a function generator input; validation
-with real neural signals from electrodes lies outside the scope of firmware
-development.
+All measurements in this work were performed with the Intan RHS2116 mounted on its
+carrier board, connected via long inter-board wiring and a 40-pin connector board.
+This assembly is not representative of a final implantable form factor, and its
+wiring is the dominant source of WPT-induced interference (Section~\ref{sec:results_noise}).
+The direct on-chip measurement establishes a lower bound on what a co-integrated
+solution would achieve, but the key claim --- that eliminating the carrier board
+and long cables will render the system compatible with the WPT field --- could not
+be directly verified: the prototype flex PCB that was intended to test this had a
+non-functional on-board oscillator circuit and could not be characterised inside
+the WPT field.
+
+Power measurements were likewise performed with this bench assembly. The power
+figures reported here therefore include contributions from the carrier board and
+connector wiring not present in a final thin-film implant; the actual power of a
+co-integrated implementation may differ. Additionally, all measurements were made
+at room temperature; thermal effects under implanted conditions have not been
+characterised.
+
+Signal recording was validated using a function generator input; validation with
+real neural signals from electrodes lies outside the scope of firmware development.
 
 \subsection{Future Directions}
 
