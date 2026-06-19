@@ -706,10 +706,13 @@ conservative round value within the stable regime.
 \subsubsection{Stimulation Architecture}
 \label{sec:stim_architecture}
 
-Electrical stimulation delivers charge-balanced biphasic current pulses via a
+Electrical stimulation delivers biphasic current pulses via a
 pre-computed sequence of SPI register writes to the Intan RHS2116, comprising a
 cathodic phase, an optional interphase delay, and an anodic phase; the inter-pulse
-gap is timed in hardware. The stimulation pipeline is predominantly hardware-driven
+gap is timed in hardware. The cathodic and anodic amplitudes are configured
+independently per channel, allowing asymmetric waveforms. Setting the anodic
+amplitude to zero reduces the waveform to a monophasic cathodic pulse (no anodic
+charge is delivered, though the anodic timing window still elapses). The stimulation pipeline is predominantly hardware-driven
 using PPI and EasyDMA; the only CPU involvement during active stimulation is a
 single ISR per pulse that resets the EasyDMA TX pointer so the next pulse replays
 the full waveform (Section~\ref{sec:stim_ppi}). Stimulation parameters are stored
@@ -1045,8 +1048,10 @@ resumes recording automatically once stimulation ends.
 
 Amplitude resolution is determined by the Intan RHS2116 current-step size,
 which is set by hardware register~34.  The current implementation fixes the
-step size at the power-on default of 2\,\textmu A, giving an effective range
-of 2--510\,\textmu A in 2\,\textmu A increments.  Full automatic step-size
+step size at the power-on default of 2\,\textmu A; non-zero values are therefore
+quantised to 2, 4, \ldots, 510\,\textmu A.  An amplitude of 0\,\textmu A is also
+selectable and disables current output for that phase, enabling monophasic
+stimulation when set on the anodic channel.  Full automatic step-size
 selection --- which would expose the complete 10\,nA--10\,\textmu A range ---
 would require the C~packet to carry the register-34 value and a corresponding
 firmware update on the peripheral to write that register before stimulation

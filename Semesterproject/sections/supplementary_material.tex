@@ -777,9 +777,10 @@ when stimulation ends.
     either value propagates to all per-channel rows simultaneously; individual
     channels can be adjusted independently afterwards. The current amplitude
     resolution is fixed at the Intan RHS2116 power-on default of
-    2\,\textmu{}A per DAC step, giving an effective range of
-    2--510\,\textmu{}A in 2\,\textmu{}A increments (see
-    Section~\ref{sec:gui} for details and the planned improvement).
+    2\,\textmu{}A per DAC step, so non-zero values are quantised to
+    2, 4, \ldots, 510\,\textmu{}A. Setting the anodic amplitude to
+    0\,\textmu{}A disables anodic current output, enabling monophasic
+    stimulation (see Section~\ref{sec:gui} for the planned step-size improvement).
 
     \item \textbf{Cat PW / Ano PW}: cathodic and anodic pulse widths
     (10--10\,000\,\textmu{}s each, default 200\,\textmu{}s). Global-only;
