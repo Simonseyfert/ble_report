@@ -569,7 +569,7 @@ protocol ISRs --- so that nothing can preempt the code between \texttt{enter} an
 (halting data acquisition), updates the DMA write pointer to the new buffer, and
 resumes Timer1 (restarting acquisition). Without this protection, an interrupt
 occurring after Timer1 is stopped but before it is restarted would extend the
-acquisition gap beyond ${\approx}250$\,ns, causing sample loss during that delay:
+acquisition gap beyond $\approx 250$\,ns, causing sample loss during that delay:
 
 \begin{lstlisting}[language=C]
 sd_nvic_critical_region_enter(&is_nested);
@@ -610,7 +610,7 @@ handler executes is therefore 290\,\textmu{}s: the maximum duration of the longe
 single SoftDevice ISR (250\,\textmu{}s, PostProcessing) plus one immediately
 following $t_{\text{ISR}(4)}$ interrupt (40\,\textmu{}s). The 1.6\,ms swap window
 exceeds this by a factor of more than five, guaranteeing the buffer cannot overflow.
-Once the handler runs, the swap itself (${\approx}250$\,ns) completes well before
+Once the handler runs, the swap itself ($\approx 250$\,ns) completes well before
 the next SoftDevice ISR fires, since the minimum inter-ISR gap is 183\,\textmu{}s
 (Appendix~\ref{app:softdevice_timing}).
 
@@ -747,7 +747,8 @@ on all selected channels, both using the Intan's triggered-update (U-flag)
 mechanism so that the change takes effect on all channels together, with no delay
 between them. These two transactions consume
 16\,\textmu{}s of the phase period but are necessary to initiate the current.
-The $+0.5$ term rounds to the nearest integer. All pulse durations are therefore
+Adding $0.5$ before taking the floor rounds to the nearest integer rather than
+truncating downward. All pulse durations are therefore
 quantised to multiples of 8\,\textmu{}s.
 
 Per-channel stimulation amplitude is independent: each channel's cathodic and
@@ -948,7 +949,7 @@ to RTT channel~0 via \texttt{SEGGER\_RTT\_Write()}:
     detect the beginning of each packet in the raw RTT byte stream;
     \item Bytes 6--229: $112 \times 2$-byte sample values in big-endian order
     (most significant byte first);
-    \item Bytes 230--231: packet counter (big-endian \texttt{uint16\_t}).
+    \item Bytes 230--231: packet counter, a 2-byte value in big-endian order.
 \end{itemize}
 
 The staging buffer is reset to zero on disconnect to prevent stale fragments
