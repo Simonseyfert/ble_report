@@ -17,7 +17,7 @@ implementation, achieved while increasing the channel count 16-fold. Two archite
 changes account for this: the PPI/DMA pipeline allows the CPU to remain in low-power
 sleep between BLE connection events, and removal of the UART peripheral eliminates a
 further source of continuous power draw. Combined system power (nRF52832 and Intan
-RHS2116) was measured at 61.3\,mW at 3.6\,V in the default 16-channel, 2\,kHz
+RHS2116) was measured at 62.9\,mW at 3.6\,V in the default 16-channel, 2\,kHz
 per channel configuration, with power scaling approximately as $V^{1.47}$ between
 3.0\,V and 3.6\,V supply.
 

@@ -90,7 +90,8 @@ This decouples data acquisition almost entirely from CPU availability, eliminati
 sample jitter caused by SoftDevice radio preemption and enabling the processor to remain
 in low-power sleep between BLE connection events. The system supports a configurable
 selection of 1--16 recording channels at adjustable per-channel sampling rates up to
-32\,kHz, charge-balanced biphasic electrical stimulation with per-channel amplitude and
+32\,kHz, charge-balanced biphasic electrical stimulation (or monophasic, by setting the
+anodic amplitude to zero) with per-channel amplitude and
 timing control, and persistent configuration storage in non-volatile flash memory.
 
 BLE throughput with real SPI data reached up to approximately 540\,kbps in the
@@ -102,7 +103,7 @@ configurations are presented.
 The nRF52832 peripheral module consumed 18.6\,mW (equivalent to 20.4\,mW at 3.3\,V),
 a 31\,\% reduction compared to the prior single-channel implementation, while
 simultaneously increasing the channel count 16-fold. Combined system power
-(nRF52832\,+\,Intan RHS2116) was 61.3\,mW at 3.6\,V (48.6\,mW at 3.0\,V),
+(nRF52832\,+\,Intan RHS2116) was 62.9\,mW at 3.6\,V (48.6\,mW at 3.0\,V),
 where 3.6\,V is the nominal WPT output voltage chosen to account for expected
 voltage drops in thin-film integration. Most significantly, end-to-end operation of the complete recording and BLE data
 transmission pipeline under wireless power was demonstrated with a compact WLCSP49

@@ -4,15 +4,12 @@
 
 \subsection{Electromagnetic Interference in the WPT Field}
 
-At 30\,cm from the transmitter coil, the recorded noise on a GND-shorted channel
-is typically within $\pm10$\,\textmu{}V (20\,\textmu{}V$_\text{pp}$), only
-marginally above the amplifier's intrinsic noise floor of
-$\approx15.8$\,\textmu{}V$_\text{pp}$. However,
-interference grows rapidly with proximity, and inside the coil the amplifier input
-saturates entirely. The direct on-chip measurement --- shorting a channel with no
-carrier board wiring --- reduced the interference to $\pm20$--$30$\,\textmu{}V
-even inside the coil --- an approximately 200-fold reduction relative to the
-$-6000$ to $+4000$\,\textmu{}V saturation observed with the carrier board. This confirms that the
+The interference measurements (Section~\ref{sec:results_noise}) show that noise on
+a GND-shorted channel is low at 30\,cm but grows rapidly with proximity, saturating
+the amplifier input entirely inside the coil. Critically, the direct on-chip
+measurement --- shorting a channel with no carrier board wiring --- kept the
+interference to $\pm20$--$30$\,\textmu{}V even inside the coil, an approximately
+200-fold reduction. This confirms that the
 carrier board wiring, rather than the WPT field acting directly on the silicon, is
 the dominant pickup path: long external wires form inductive loops and act as
 antennas in the alternating magnetic field.
@@ -159,9 +156,10 @@ captures the second chip's MISO into its own EasyDMA buffer in parallel with the
 After each DMA buffer swap, the two inactive buffers --- one per chip --- could be
 copied interleaved to the ring buffer, producing a contiguous 32-channel data stream
 (Ch01--Ch16 from chip~1, Ch17--Ch32 from chip~2) at the same SPI clock rate as the
-current single-chip design. At 1\,kHz per channel, the total SPI transaction rate is
-identical to the current 16-channel, 2\,kHz configuration, so no changes to the BLE
-throughput budget or timing architecture would be required. A per-channel rate of
+current single-chip design. At 1\,kHz per channel, the total data rate is
+$32 \times 1\,\text{kHz} = 32\,000$ samples/s --- identical to the current
+16-channel, 2\,kHz configuration --- so no changes to the BLE throughput budget
+would be required. A per-channel rate of
 1\,kHz remains above the Nyquist frequency for LFP signals up to approximately
 300\,Hz~\cite{reimann2013biophysically} and would therefore preserve the full signal
 content of interest. This approach has not been implemented or tested and would require

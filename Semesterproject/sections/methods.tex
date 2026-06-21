@@ -80,7 +80,7 @@ For the firmware development, the nrf52832 development kits (DKs) were used as t
 \label{sec:hardware_intan}
 
 SPI (Serial Peripheral Interface) is a synchronous serial protocol in which one device,
-the master (here the nRF52832), drives the clock (SCLK)\label{sec:spi_timing} and
+the master (here the nRF52832), drives the clock (SCLK) and
 initiates every transaction, while the other, the slave (here the Intan RHS2116),
 responds only when addressed. The clock rate is fixed at 8\,MHz throughout this design,
 in both recording and stimulation modes.
@@ -133,7 +133,7 @@ The initialisation sequence follows the example procedure in the RHS2116
 datasheet~\cite{intan_rhs2116_datasheet} (pp.~44--45). The lower amplifier bandwidth is
 fixed at $f_L = 5$\,Hz, appropriate for LFP recording. The only notable deviation is
 that the upper bandwidth~$f_H$ is not configured during initialisation; it is instead
-written at every acquisition start via \texttt{rhs\_set\_bandwidth()}, enabling the
+written at every acquisition start, enabling the
 upper bandwidth to be adjusted from the GUI based on the configured sampling rate
 (see Section~\ref{sec:ppi_acquisition}).
 
@@ -386,7 +386,10 @@ as described in Section~\ref{sec:results_noise}.
     \caption{Miniaturization progression toward an integrated neural recording module.
     (a) SparkFun nRF52832 Breakout board, used for initial development (50$\times$16\,mm).
     (b) Custom QFN48 nRF52832 module (29$\times$17\,mm).
-    (c) Custom WLCSP49 nRF52832 module, most compact standalone module (29$\times$17\,mm).
+    (c) Custom WLCSP49 nRF52832 module (29$\times$17\,mm). The board is the same size
+    as (b); it is the \emph{chip package} that is smaller (WLCSP49 2.956$\times$3.226\,mm
+    vs.\ QFN48 6$\times$6\,mm), which is what enables further miniaturisation in a
+    final co-integrated device.
     (a)--(c) run identical firmware and each interface with the Intan RHS2116 via an
     external carrier board (see Figure~\ref{fig:wiring_connector}).
     (d) Prototype flex PCB co-integrating the nRF52832 and Intan RHS2116 on the same
@@ -598,10 +601,11 @@ immediately resumed unless a stop has been requested, in which case acquisition
 halts cleanly at the buffer boundary.
 
 When the threshold fires at transaction 819, the active buffer has
-$1024 - 819 = 205$ slots remaining before it would overflow. At the maximum SPI
-rate of 128\,kHz (8\,kHz per channel in multi-channel mode, reachable at any
-channel count since the SPI always fires at $16\times$ the per-channel rate), this
-gives a swap window of $205 \times 7.8125\;\mu\text{s} \approx 1.6\,\text{ms}$.
+$1024 - 819 = 205$ slots remaining before it would overflow. The fastest the
+buffer can fill is at the maximum SPI rate of 128\,kHz, which corresponds to
+8\,kHz per channel and is reached at 2, 3, or 4 channels (at higher channel counts
+the BLE link, not the SPI bus, is the limit, so the SPI rate is lower). This worst
+case gives a swap window of $205 \times 7.8125\;\mu\text{s} \approx 1.6\,\text{ms}$.
 The SoftDevice consumes at most 700\,\textmu{}s of CPU time per connection event
 (derived in Appendix~\ref{app:softdevice_timing}), but these SoftDevice ISRs do not execute
 consecutively --- they are separated by gaps of at least 183\,\textmu{}s during
@@ -660,6 +664,7 @@ neither can read a value while the other is in the middle of changing it, which
 would otherwise risk corrupting the data.
 
 \subsubsection{SPI Peripheral Configuration and CS Control}
+\label{sec:spi_timing}
 
 The SPI peripheral switches between two different control approaches at several
 points across the recording and stimulation lifecycle, and is reconfigured each
@@ -760,10 +765,9 @@ would be a non-trivial extension, since the entire pulse sequence is driven by a
 single shared TX buffer and timer chain common to all enabled channels.
 
 \paragraph{Waveform Construction and Phase Transitions.}
-\texttt{stim\_build\_tx\_buffer()} pre-computes a flat array of 4-byte SPI
-frames (\texttt{stim\_tx\_buf}, up to \texttt{STIM\_MAX\_TRANSACTIONS} $= 1012$
-entries, corresponding to a maximum total pulse duration of approximately
-8\,ms) representing one complete biphasic pulse. The sequence is:
+The firmware pre-computes a flat array of 4-byte SPI
+frames (up to 1012 entries, corresponding to a maximum total pulse duration of
+approximately 8\,ms) representing one complete biphasic pulse. The sequence is:
 
 \begin{enumerate}
     \item \textbf{Cathodic phase onset}: two register writes set the cathodic
@@ -940,7 +944,7 @@ demultiplexing. This property does not carry over to the variable channel-count
 configurations added later (Section~\ref{sec:ppi_acquisition}), but the packet
 size itself was kept unchanged. The completed packet is serialised
 into a 232-byte binary frame (adding a 6-byte synchronisation header) and written
-to RTT channel~0 via \texttt{SEGGER\_RTT\_Write()}:
+to RTT:
 
 \begin{itemize}
     \item Bytes 0--5: synchronisation header (\texttt{0xAA 0x55} repeated
@@ -954,16 +958,6 @@ to RTT channel~0 via \texttt{SEGGER\_RTT\_Write()}:
 
 The staging buffer is reset to zero on disconnect to prevent stale fragments
 from a previous connection corrupting the first packet of the next session.
-
-\paragraph{Packet Loss Detection.}
-Each BLE packet carries a 16-bit rolling counter. The GUI checks on every
-received frame whether the counter has advanced by exactly one; a larger gap
-indicates that one or more packets were lost in transmission. When loss is
-detected, the cumulative lost-packet count in the status bar is incremented,
-and the channel assignment phase is advanced to account for the samples that were
-skipped (112 per lost packet), so that subsequent samples are still assigned to
-the correct channel. Both the firmware and the GUI reset their counters at the
-start of each recording session, so packet tracking is always consistent.
 
 \paragraph{Command Forwarding.}
 Commands are only forwarded if a connection to the peripheral is active;
@@ -999,9 +993,8 @@ recognised commands are forwarded to the peripheral:
     sufficient --- so plain text is used for simplicity and debuggability.
     Matching is by substring search (the keyword is accepted anywhere within
     the received string), unlike binary packets which require an exact leading
-    byte and exact length. Binary encoding is used for the C, S, and R packets
-    because their multi-byte numerical payload (DAC values, pulse widths,
-    frequencies) would exceed the BLE write size limit if encoded as ASCII text.
+    byte and exact length. The C, S, and R packets carry multi-byte numerical
+    payloads and so use binary encoding rather than text.
 \end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1029,6 +1022,17 @@ channels in order; this index carries over from one packet to the next, so
 samples still end up in the right channel's buffer even when a packet does not
 happen to start at the first channel of a cycle.
 
+\paragraph{Packet Loss Detection.}
+Each BLE packet carries a 16-bit rolling counter (added by the peripheral). The
+GUI checks on every received frame whether the counter has advanced by exactly
+one; a larger gap indicates that one or more packets were lost in transmission.
+When loss is detected, the cumulative lost-packet count in the status bar is
+incremented, and the rolling channel index is advanced to account for the samples
+that were skipped (112 per lost packet), so that subsequent samples are still
+assigned to the correct channel. Both the peripheral and the GUI reset their
+counters at the start of each recording session, so packet tracking is always
+consistent.
+
 \paragraph{Recording Configuration.}
 Before starting a recording session, the user selects which channels to record
 via per-channel checkboxes, sets the per-channel sampling rate, and selects the
@@ -1053,7 +1057,7 @@ A dedicated stimulation dialog (accessible via the \texttt{STIMULATION} button)
 exposes the full set of stimulation parameters: per-channel cathodic and anodic amplitude (in \textmu A),
 cathodic and anodic pulse width, interphase delay, stimulation frequency, and
 total number of pulses. Each channel row displays a live waveform preview and a
-per-channel charge balance indicator showing cathodic and anodic charge in pC
+per-channel charge balance indicator showing cathodic and anodic charge in nC
 and the percentage imbalance. Recording is suspended during stimulation to
 prevent amplifier saturation from the stimulation artefact; the peripheral
 resumes recording automatically once stimulation ends.

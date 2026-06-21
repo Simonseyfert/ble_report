@@ -28,7 +28,7 @@ channel count 16-fold. Two architectural improvements account for this: the PPI/
 acquisition pipeline allows the CPU to remain in low-power sleep between BLE events
 rather than spinning in a polling loop, and removal of the UART peripheral eliminates
 a further source of continuous power draw. Combined power consumption of the nRF52832 and Intan RHS2116 was measured at
-61.3\,mW at 3.6\,V and 48.6\,mW at 3.0\,V in the same 16-channel, 2\,kHz per
+62.9\,mW at 3.6\,V and 48.6\,mW at 3.0\,V in the same 16-channel, 2\,kHz per
 channel configuration. Full power measurements across all channel and sampling
 rate configurations at both supply voltages are presented in
 Section~\ref{sec:results_power} and Appendix~\ref{app:power_data}.
@@ -367,7 +367,7 @@ further.
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.55\textwidth]{figures/shorted_on_intan.png}
-    \caption{Channel~0 shorted directly on the Intan RHS2116 die, without the
+    \caption{Channel~1 shorted directly on the Intan RHS2116 die, without the
     carrier board, inside the WPT field. Interference is reduced to
     $\pm20$--$30$\,\textmu{}V, confirming that carrier board wiring is the
     dominant pickup mechanism.}
