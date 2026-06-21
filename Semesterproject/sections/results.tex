@@ -83,12 +83,10 @@ Tektronix DPO2024 Digital Phosphor Oscilloscope~\cite{tektronix_dpo2024}
 to verify the waveform shape and amplitude. Figure~\ref{fig:stim_osc}
 shows simultaneous stimulation on two channels. Both channels use equal cathodic
 and anodic pulse widths of 400\,\textmu{}s with an interphase delay of
-26\,\textmu{}s (the minimum selectable in the firmware). The two channels operate at different amplitudes:
+24\,\textmu{}s. The two channels operate at different amplitudes:
 the upper trace (blue) carries half the current of the lower trace
 (yellow), demonstrating independent per-channel amplitude control. The waveforms
-are charge-balanced and the biphasic shape is clearly resolved. The low-level
-noise visible on the traces originates from the bench measurement setup, not
-from the firmware.
+are charge-balanced and the biphasic shape is clearly resolved.
 
 Figure~\ref{fig:stim_gui} shows the stimulation control window used to configure
 and trigger the stimulation sequence.
@@ -98,7 +96,7 @@ and trigger the stimulation sequence.
     \includegraphics[width=0.8\textwidth]{figures/oscilloscope_two_channels_stim.jpg}
     \caption{Oscilloscope trace of simultaneous two-channel biphasic stimulation.
     Both channels: 400\,\textmu{}s cathodic phase, 400\,\textmu{}s anodic phase,
-    26\,\textmu{}s interphase delay (minimum selectable). The upper channel (blue) has
+    24\,\textmu{}s interphase delay. The upper channel (blue) has
     approximately half the amplitude of the lower channel (yellow), demonstrating
     independent per-channel amplitude control.}
     \label{fig:stim_osc}
@@ -121,7 +119,7 @@ and trigger the stimulation sequence.
 Combined (nRF52832\,+\,Intan RHS2116) power consumption was measured at both
 3.0\,V and 3.6\,V supply; 3.6\,V corresponds to the output voltage of the
 wireless power transfer system, while 3.0\,V serves as a lower-voltage
-reference. Full measurement tables for both voltages are provided in
+reference, representative of the nRF52832's supply voltage when powered via USB. Full measurement tables for both voltages are provided in
 Appendix~\ref{app:power_data}. The nRF52832-only reference value was measured
 at the actual bench supply of 3.020\,V (equivalent to 20.4\,mW at 3.3\,V).
 
@@ -185,25 +183,25 @@ avoid the fixed $16\times$ SPI overhead: two channels at 2\,kHz would require on
 4\,kHz total SPI transactions instead of 32\,kHz, raising the per-channel rate
 ceiling and intuitively suggesting a power saving. The present data, however, show
 that each \texttt{CONVERT($k$)} transaction is 7--14\,\% more expensive than a
-\texttt{CONVERT(63)} transaction at the same total SPI rate --- contrary to the
-expectation that issuing commands for only the selected channels would be cheaper.
-Whether this per-transaction overhead would be fully or partially offset by the
+\texttt{CONVERT(63)} transaction at the same total SPI rate. This is itself the
+counterintuitive part: at a fixed SPI rate, the two command types might naively be
+expected to cost about the same, or if anything \texttt{CONVERT(63)} slightly more
+due to the internal multiplexing logic it requires (though this overhead is likely
+negligible) --- not the reverse. Since a \texttt{CONVERT($k$)}-based architecture
+would nonetheless send fewer total transactions for the same number of selected
+channels, whether this per-transaction overhead would be fully or partially offset by the
 reduction in transaction count is not determinable from the available data; a direct
 measurement of a \texttt{CONVERT($k$)}-based multi-channel implementation would be
-required. This question is not merely a concern at maximum rate: the present results
-come from comparisons at the same total SPI rate (held constant by \texttt{CONVERT(63)}'s
-fixed 32\,kHz output for all multi-channel configurations). A
-\texttt{CONVERT($k$)}-based implementation at 2\,kHz per channel would operate at only
-$N \times 2$\,kHz total (for $N$ selected channels), a factor of 16 lower at
-$N = 2$ --- so the net power difference between the two architectures at 2\,kHz per
-channel is also an open question requiring a direct measurement.
+required.
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.85\textwidth]{figures/max_rate_per_channel_and_power_consumption.png}
     \caption{Maximum achievable per-channel sampling rate (left axis, circles) and
     combined nRF52832 and Intan RHS2116 power consumption at 3.6\,V (right axis,
-    squares) as a function of the number of active recording channels. The 1-channel
+    squares) as a function of the number of active recording channels. The light
+    blue shaded area marks the supported per-channel sampling rates (from 0 up to
+    the maximum) for each channel count. The 1-channel
     and 4--16-channel configurations are BLE-limited at 32\,000 total samples/s; 2 and
     3 channels are SPI-limited at 128\,kHz and show a dip in power due to lower BLE
     throughput.}
@@ -286,12 +284,15 @@ plots for the two runs are provided in Appendix~\ref{app:power_repeat}.
 \subsection{Electromagnetic Interference in the WPT Field}
 \label{sec:results_noise}
 
-The primary motivation for progressively miniaturising the peripheral module was
-physical size: implantable neural devices for small animals such as rodents face
-strict volume and weight constraints, and the rat spinal cord is among the most
-demanding anticipated targets in this regard. A secondary but equally
-important motivation is compatibility with wireless power delivery, which requires
-the entire module to fit within the receiver coil footprint. Using the WPT system developed in
+Miniaturising the peripheral module served two purposes. First, implantable
+neural devices need to be compact, particularly for small-animal applications
+such as the rat spinal cord targeted here, where volume and weight constraints
+are far tighter than in larger animals or humans. Second, and equally important, is
+compatibility with wireless power delivery: beyond simply fitting within the
+receiver coil footprint, long external wires and loops were found to pick up
+severe interference from the WPT field --- as shown below, fully saturating the
+amplifier input --- so collocating the chips on a single compact module is
+central to WPT compatibility, not just to reducing footprint. Using the WPT system developed in
 parallel within the lab (developed by Marta Vasconcelos), the complete peripheral --- nRF52832 and
 Intan RHS2116 --- was operated with no wired power supply. This represents the
 most significant system-level result of this work: the full wireless architecture

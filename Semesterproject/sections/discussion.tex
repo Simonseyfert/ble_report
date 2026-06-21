@@ -48,24 +48,57 @@ pipeline writes to the inactive buffer only and the CPU reads from it only once
 per swap, so no locking is needed.
 
 Bypassing the ring buffer has two realisations with different trade-offs.
-\emph{Option A} (two buffers total): retain double-buffered EasyDMA but transmit
-directly from the inactive buffer, removing the ring buffer entirely. Atomicity
-is preserved, but the DMA buffers store all 16 channels at 4\,bytes each --- no
-channel filtering --- so each buffer holds far fewer effective samples of the
-selected channels, and the system can tolerate fewer BLE delays before data is
-overwritten.
-\emph{Option B} (one buffer total): replace the two DMA buffers with a single
-large EasyDMA list acting as a circular acquisition buffer, and transmit directly
-from it. Because the full buffer capacity is available as a continuous queue
-rather than being split between a write half and a read half, this gives twice
-the BLE delay tolerance of Option~A for the same total memory. The atomic
-handover of the ping-pong scheme is no longer available, however, so the SPI
-write pointer and BLE read pointer must be managed carefully to prevent
-overwrites. Even so, Option~B is probably still worse than the current
+\emph{Option A} (two buffers total): retain the current design's two-buffer
+\emph{ping-pong} scheme --- two separate EasyDMA buffers, where hardware writes
+to one while the CPU reads from the other, then the roles swap --- but transmit
+directly from the inactive buffer instead of copying it into a ring buffer first.
+Because the same ping-pong scheme is kept, each buffer swap is still a single
+clean handover --- the old buffer is entirely finished and safe to read the
+moment the swap happens, exactly as in the current design. However, if
+\texttt{CONVERT(63)} is retained, the DMA buffers store all
+16 channels at 4\,bytes each --- no channel filtering --- so each buffer holds far
+fewer effective samples of the selected channels, and the system can tolerate
+fewer BLE delays before data is overwritten. Switching to a
+\texttt{CONVERT($k$)}-based acquisition for only the selected channels would avoid
+storing unneeded channels, improving on this; each sample would still occupy
+4\,bytes (the fixed EasyDMA word size) rather than the ring buffer's 2\,bytes,
+so this would only partially close the gap to the current architecture.
+\emph{Option B} (one buffer total): replace the two ping-pong EasyDMA buffers with
+a single, larger EasyDMA buffer that the firmware operates \emph{as if} it were a
+ring buffer, transmitting directly from it instead of using a separate
+CPU-managed ring buffer as in the current design. Because the full buffer
+capacity is available as a continuous queue rather than being split between a
+write half and a read half, this gives twice the BLE delay tolerance of Option~A
+for the same total memory. In the ping-pong
+scheme, each buffer swap is a single clean handover: the moment it happens, the
+old buffer is entirely finished and safe to read, with no risk of the writer
+touching it again. A single EasyDMA buffer pressed into service as a circular
+buffer has no such clean handover point --- the SPI write pointer and BLE read
+pointer continuously move through the same memory, so the firmware must
+continually check that the read pointer never falls so far behind that the write
+pointer catches up and overwrites data not yet sent.
+
+A single circular buffer also reintroduces the wraparound problem already solved
+for the stimulation TX buffer (Section~\ref{sec:stim_architecture}): EasyDMA lists
+do not wrap automatically once exhausted, so the CPU must manually reset the write
+pointer back to the start each time the list end is reached, and this reset could
+itself be delayed if the CPU is busy elsewhere (e.g.\ servicing a SoftDevice ISR).
+The same mitigation already used for the existing buffer swap could apply here:
+triggering the wraparound early, at some threshold below full capacity (e.g.\
+80\,\%, as in the current 819-of-1024 threshold), and reading the actual EasyDMA
+write pointer at the moment of the reset rather than assuming the threshold was
+reached exactly --- leaving headroom to absorb any delay in the CPU servicing the
+reset.
+
+Even so, Option~B is probably still worse than the current
 architecture for low channel counts: at 2\,channels the ring buffer stores data
 at 2\,channels\,$\times$\,2\,bytes per cycle, whereas an unfiltered DMA buffer
-stores 16\,channels\,$\times$\,4\,bytes --- a 16$\times$ difference that
-outweighs the 2$\times$ gain from removing ping-pong.
+(using \texttt{CONVERT(63)}) stores 16\,channels\,$\times$\,4\,bytes --- a
+16$\times$ difference that outweighs the 2$\times$ gain from removing ping-pong.
+As with Option~A, using \texttt{CONVERT($k$)} instead would store only the
+selected channels, narrowing this gap considerably, though the fixed 4-byte
+EasyDMA word size means it would still be only half as compact per sample as the
+ring buffer.
 
 This optimisation is left for future work if power becomes the primary
 constraint.
@@ -77,18 +110,20 @@ carrier board, connected via long inter-board wiring and a 40-pin connector boar
 This assembly is not representative of a final implantable form factor, and its
 wiring is the dominant source of WPT-induced interference (Section~\ref{sec:results_noise}).
 The direct on-chip measurement establishes a lower bound on what a co-integrated
-solution would achieve, but the key claim --- that eliminating the carrier board
-and long cables will render the system compatible with the WPT field --- could not
-be directly verified: the prototype flex PCB that was intended to test this had a
-non-functional on-board oscillator circuit and could not be characterised inside
-the WPT field.
+solution would achieve, confirming with a shorted (zero-signal) channel that
+removing the carrier board and long cables substantially reduces interference.
+However, the corresponding claim for a real signal --- that an actual neural-like
+input remains recoverable without the carrier board, inside the WPT field ---
+could not be directly verified: the prototype flex PCB that was intended to
+provide such a signal via its on-board oscillator had a non-functional oscillator
+circuit and could not be characterised inside the WPT field.
 
 Power measurements were likewise performed with this bench assembly. The power
 figures reported here therefore include contributions from the carrier board and
-connector wiring not present in a final thin-film implant; the actual power of a
-co-integrated implementation may differ. Additionally, all measurements were made
-at room temperature; thermal effects under implanted conditions have not been
-characterised.
+connector wiring not present in a final thin-film implant; thin-film interconnects
+are also likely to have different (probably higher) resistance than the bench
+wiring used here, so the actual power of a co-integrated implementation may differ
+in either direction.
 
 Signal recording was validated using a function generator input; validation with
 real neural signals from electrodes lies outside the scope of firmware development.
