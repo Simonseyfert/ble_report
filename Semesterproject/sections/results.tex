@@ -140,7 +140,7 @@ regardless of how many are selected; only the selected samples are forwarded ove
 so actual BLE throughput varies from 4\,000 samples/s (2 channels) to 32\,000 samples/s
 (16 channels).
 
-\begin{figure}[h]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.85\textwidth]{figures/power_consumption_at_2kHz_per_channel.png}
     \caption{Combined nRF52832 and Intan RHS2116 power consumption at 3.6\,V as a
@@ -194,7 +194,7 @@ reduction in transaction count is not determinable from the available data; a di
 measurement of a \texttt{CONVERT($k$)}-based multi-channel implementation would be
 required.
 
-\begin{figure}[h]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.85\textwidth]{figures/max_rate_per_channel_and_power_consumption.png}
     \caption{Maximum achievable per-channel sampling rate (left axis, circles) and
@@ -229,7 +229,7 @@ followed approximately 1.5\,ms later by a larger peak ($\approx 19$\,mA, 68\,mW)
 consistent with the sequential radio interrupts within a single connection event
 described in Appendix~\ref{app:softdevice_timing}.
 
-\begin{figure}[h]
+\begin{figure}[htb]
     \centering
     \includegraphics[width=\textwidth]{figures/power_consumption_1ch_2kHz.png}
     \caption{Power consumption time course for the 1-channel, 2\,kHz per channel
@@ -337,7 +337,7 @@ $+50$ to $+60$\,\textmu{}V and down to $-90$\,\textmu{}V. Inside the coil the
 signal saturates the amplifier input entirely, spanning from $-6000$ to
 $+4000$\,\textmu{}V.
 
-\begin{figure}[h]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\textwidth]{figures/noise_shorted.png}
     \caption{GND-shorted channel~7 at three distances from the WPT transmitter
@@ -364,7 +364,7 @@ $\pm20$--$30$\,\textmu{}V reflects hand-soldered connections still forming small
 pickup loops; microfabricated traces on a co-integrated PCB would probably reduce these
 further.
 
-\begin{figure}[h]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.55\textwidth]{figures/shorted_on_intan.png}
     \caption{Channel~0 shorted directly on the Intan RHS2116 die, without the
